@@ -1,13 +1,14 @@
 export type Category = "Essential" | "Non-Essential" | "Savings";
 
 export interface TransactionInput {
+  userId: string;
   date: string;
   description: string;
   amount: number;
   month: string;
   category: Category;
-  credit?: boolean;
-  investment?: boolean;
+  credit: boolean;
+  investment: boolean;
 }
 
 export interface Summary {

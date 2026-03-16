@@ -1,6 +1,7 @@
 import Papa from "papaparse";
 import { NextRequest, NextResponse } from "next/server";
 
+import { getAuthSession } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
 import { autoTagCategory, inferInvestment } from "@/lib/tagging";
 import Transaction from "@/models/Transaction";
@@ -19,6 +20,12 @@ function toNumber(value: string) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getAuthSession();
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const { csvContent } = body as { csvContent?: string };
 
@@ -35,7 +42,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.errors[0].message }, { status: 400 });
   }
 
-  const transactions: TransactionInput[] = parsed.data
+  const transactions = parsed.data
     .map((row) => {
       const date = row.date ?? row.Date ?? "";
       const description = row.description ?? row.Description ?? "";
@@ -49,6 +56,7 @@ export async function POST(request: NextRequest) {
       const category = autoTagCategory(description);
 
       return {
+        userId: session.user.id,
         date,
         description,
         amount: Math.abs(amount),
@@ -58,7 +66,7 @@ export async function POST(request: NextRequest) {
         investment: inferInvestment(description),
       };
     })
-    .filter((t): t is TransactionInput => Boolean(t));
+    .filter((transaction): transaction is TransactionInput => transaction !== null);
 
   await connectToDatabase();
   await Transaction.insertMany(transactions);

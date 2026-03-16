@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getAuthSession } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
 import Transaction from "@/models/Transaction";
 
 export async function GET(request: NextRequest) {
   const month = request.nextUrl.searchParams.get("month");
+  const session = await getAuthSession();
 
   if (!month) {
     return NextResponse.json({ error: "month is required" }, { status: 400 });
   }
 
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   await connectToDatabase();
 
-  const transactions = await Transaction.find({ month }).lean();
+  const transactions = await Transaction.find({ userId: session.user.id, month }).lean();
 
   const byCategory = ["Essential", "Non-Essential", "Savings"].map((name) => ({
     name,

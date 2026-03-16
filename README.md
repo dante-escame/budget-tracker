@@ -1,82 +1,92 @@
-# Budget Tracker (React + Next.js + MongoDB)
+# Budget Tracker
 
-This project is a full-stack monthly budget tracker designed for your workflow:
+Fullstack budget tracker built around free-tier services:
 
-- Front-end in **React** (with Next.js App Router client components).
-- Back-end in **Next.js Route Handlers**.
-- Database in **MongoDB** using **Mongoose**.
-- Imports one month bank statement via CSV and auto-tags outcomes.
+- Next.js App Router for frontend and backend route handlers
+- Vercel for automatic deployments
+- MongoDB Atlas free tier for data storage
+- Mongoose for MongoDB integration
+- NextAuth credentials authentication with email and password
 
-## Core Features
+Each authenticated user only sees their own transactions and summaries.
 
-- Monthly statement import (`date,description,amount` headers expected).
-- Auto-tagging categories:
-  - `Essential` keywords:
-    - `Wellhub`
-    - `Growth`
-    - `iFood`
-    - `Claro`
-    - `Solange Villela Dos Reis Escame`
-  - `Savings` keyword:
-    - `Compra de Ações`
-  - Otherwise defaults to `Non-Essential`.
-- Optional flags per transaction:
-  - `credit` (credit card purchase)
-  - `investment` (pix out to invest / coin conversion)
-- Month-by-month filtering.
-- Charts:
-  - Pie chart by category.
-  - Bar chart for credit total vs investment total.
+## Included Features
 
-## API Endpoints
+- Account creation with email and password
+- Sign in and sign out with NextAuth
+- CSV import for monthly bank statements
+- Automatic category tagging
+- Month filtering, editable transaction flags, and charts
+- User-scoped API routes backed by MongoDB Atlas
 
-- `POST /api/import`
-  - Accepts JSON: `{ "csvContent": "..." }`
-  - Parses and stores only negative amount rows as expenses.
-- `GET /api/transactions?month=YYYY-MM`
-  - Lists imported transactions for selected month.
-- `PATCH /api/transactions`
-  - Updates transaction fields (`category`, `credit`, `investment`).
-- `GET /api/summary?month=YYYY-MM`
-  - Returns totals for charting.
+## Architecture
 
-## Database Model
+- Frontend: Next.js + React
+- Backend: Next.js route handlers, which run as serverless functions on Vercel
+- Database: MongoDB Atlas free cluster
+- ODM: Mongoose
+- Auth: NextAuth credentials provider
 
-`Transaction`
+## Environment Variables
 
-- `date: Date`
-- `description: string`
-- `amount: number` (stored as positive expense value)
-- `month: string` (`YYYY-MM`)
-- `category: Essential | Non-Essential | Savings`
-- `credit: boolean` (optional, default `false`)
-- `investment: boolean` (optional, default `false`)
+Copy `.env.example` to `.env.local` and fill in the values:
 
-## Local Setup
+```env
+MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/<db>?retryWrites=true&w=majority
+NEXTAUTH_SECRET=replace-with-a-long-random-string
+NEXTAUTH_URL=http://localhost:3000
+```
+
+For production on Vercel, set the same variables in the Vercel project settings and use your deployed domain for `NEXTAUTH_URL`.
+
+## Local Development
 
 1. Install dependencies:
    ```bash
    npm install
    ```
-2. Create `.env.local`:
-   ```bash
-   MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/<db>?retryWrites=true&w=majority
-   ```
-3. Start app:
+2. Create `.env.local` from `.env.example`
+3. Start the app:
    ```bash
    npm run dev
    ```
-4. Open `http://localhost:3000`.
+4. Open `http://localhost:3000`
 
-## Bank Statement Import Format
+## Vercel Deployment
 
-Provide CSV with headers similar to:
+1. Push this repository to GitHub
+2. Import the repo in Vercel
+3. Add these environment variables in Vercel:
+   - `MONGODB_URI`
+   - `NEXTAUTH_SECRET`
+   - `NEXTAUTH_URL`
+4. Deploy
+
+After the first deploy, Vercel will automatically redeploy on each push to the connected branch.
+
+## MongoDB Atlas Free Setup
+
+1. Create a free cluster in MongoDB Atlas
+2. Create a database user
+3. Add network access for your environment and Vercel
+4. Copy the connection string into `MONGODB_URI`
+
+## Main API Routes
+
+- `POST /api/register`: create a user account
+- `POST /api/auth/[...nextauth]`: authenticate with NextAuth
+- `POST /api/import`: import CSV transactions for the signed-in user
+- `GET /api/transactions?month=YYYY-MM`: list that user's transactions
+- `PATCH /api/transactions`: update that user's transaction fields
+- `GET /api/summary?month=YYYY-MM`: return that user's chart summary
+
+## CSV Format
 
 ```csv
 date,description,amount
 2026-02-01,Wellhub,-120.00
-2026-02-02,Compra de Ações,-500.00
+2026-02-02,Compra de Acoes,-500.00
 2026-02-03,Random Store,-45.90
 ```
 
-> If your bank export format differs, you can share the sample file and we can adapt parser rules inside `app/api/import/route.ts`.
+Only negative rows are imported as expenses.
