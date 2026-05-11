@@ -5,6 +5,9 @@ export {
   setSessionCookie,
 } from '@/lib/auth/cookies';
 export { normalizeEmail, toDisplayEmail } from '@/lib/auth/email';
+export { getAuthCollections } from '@/lib/auth/mongodb-collections';
+export { createMongoAuthRepository } from '@/lib/auth/mongodb-repository';
+export { getPasswordPolicy } from '@/lib/auth/settings';
 export type {
   AuthRepository,
   CreateAuthSessionInput,
