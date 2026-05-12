@@ -8,6 +8,8 @@ import Typography from '@mui/material/Typography';
 import { SignOutButton } from '@/components/auth/sign-out-button';
 import { requireVerifiedAuthenticatedUser } from '@/lib/auth/guards';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AppPage() {
   const user = await requireVerifiedAuthenticatedUser();
 
@@ -23,11 +25,14 @@ export default async function AppPage() {
       <Container maxWidth="md">
         <Stack spacing={4}>
           <Stack spacing={1.5}>
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={2}
-              justifyContent="space-between"
-              alignItems={{ xs: 'flex-start', sm: 'center' }}
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
+                gap: 2,
+                justifyContent: 'space-between',
+                alignItems: { xs: 'flex-start', sm: 'center' },
+              }}
             >
               <Box>
                 <Typography variant="overline" color="primary.dark">
@@ -38,7 +43,7 @@ export default async function AppPage() {
                 </Typography>
               </Box>
               <SignOutButton />
-            </Stack>
+            </Box>
             <Typography variant="body1" color="text.secondary">
               This route is protected by the server-side auth guard and only
               renders for verified users.
