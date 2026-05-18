@@ -4,11 +4,11 @@ import {
   badRequest,
   conflict,
   extractRequestContext,
-  maybeExposeToken,
   parseAuthRouteBody,
   serializeUser,
 } from '@/lib/auth/http';
 import { getAuthService } from '@/lib/auth/runtime';
+import { sendVerificationEmail } from '@/lib/mailer';
 
 export async function POST(request: Request) {
   const body = await parseAuthRouteBody(request);
@@ -31,11 +31,10 @@ export async function POST(request: Request) {
       'email_verification'
     );
 
+    await sendVerificationEmail(user.emailDisplay, verification.token);
+
     return NextResponse.json(
-      {
-        user: serializeUser(user),
-        verificationToken: maybeExposeToken(verification.token),
-      },
+      { user: serializeUser(user) },
       { status: 201 }
     );
   } catch (error) {

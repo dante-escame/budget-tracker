@@ -9,7 +9,7 @@ export async function requireAuthenticatedUser(
   redirectTo = '/'
 ): Promise<AuthUser> {
   const authService = await getAuthService();
-  const result = await authService.validateRequestSession();
+  const result = await authService.peekRequestSession();
 
   if (!result.user) {
     redirect(redirectTo);
@@ -23,7 +23,7 @@ export async function requireVerifiedAuthenticatedUser(
   unverifiedRedirectTo = '/verify-email'
 ): Promise<AuthUser> {
   const authService = await getAuthService();
-  const result = await authService.validateRequestSession();
+  const result = await authService.peekRequestSession();
 
   if (!result.user) {
     redirect(unauthenticatedRedirectTo);
@@ -40,7 +40,7 @@ export async function requireAuthenticatedSession(
   redirectTo = '/'
 ): Promise<{ session: AuthSession; user: AuthUser }> {
   const authService = await getAuthService();
-  const result = await authService.validateRequestSession();
+  const result = await authService.peekRequestSession();
 
   if (!result.user || !result.session) {
     redirect(redirectTo);
@@ -54,7 +54,7 @@ export async function requireAuthenticatedSession(
 
 export async function redirectIfAuthenticated(redirectTo = '/app'): Promise<void> {
   const authService = await getAuthService();
-  const result = await authService.validateRequestSession();
+  const result = await authService.peekRequestSession();
 
   if (result.user) {
     redirect(redirectTo);

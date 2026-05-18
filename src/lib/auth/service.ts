@@ -170,11 +170,7 @@ export function createAuthService(repository: AuthRepository) {
     const token = await getSessionCookie();
 
     if (!token) {
-      return {
-        session: null,
-        user: null,
-        shouldRefresh: false,
-      };
+      return { session: null, user: null, shouldRefresh: false };
     }
 
     const tokenHash = hashOpaqueToken(token);
@@ -187,11 +183,7 @@ export function createAuthService(repository: AuthRepository) {
         await repository.deleteSession(session.id);
       }
 
-      return {
-        session: null,
-        user: null,
-        shouldRefresh: false,
-      };
+      return { session: null, user: null, shouldRefresh: false };
     }
 
     const user = await repository.findUserById(session.userId);
@@ -200,16 +192,10 @@ export function createAuthService(repository: AuthRepository) {
       await repository.deleteSession(session.id);
       await clearSessionCookie();
 
-      return {
-        session: null,
-        user: null,
-        shouldRefresh: false,
-      };
+      return { session: null, user: null, shouldRefresh: false };
     }
 
-    const refreshNeeded = shouldRefreshSession(session);
-
-    if (refreshNeeded) {
+    if (shouldRefreshSession(session)) {
       const refreshedSession = await repository.updateSession(session.id, {
         expiresAt: extendSessionExpiry(),
         lastSeenAt: new Date(),
@@ -217,18 +203,39 @@ export function createAuthService(repository: AuthRepository) {
 
       await setSessionCookie(token, refreshedSession.expiresAt);
 
-      return {
-        session: refreshedSession,
-        user,
-        shouldRefresh: true,
-      };
+      return { session: refreshedSession, user, shouldRefresh: true };
     }
 
-    return {
-      session,
-      user,
-      shouldRefresh: false,
-    };
+    return { session, user, shouldRefresh: false };
+  }
+
+  async function peekRequestSession(): Promise<SessionValidationResult> {
+    const token = await getSessionCookie();
+
+    if (!token) {
+      return { session: null, user: null, shouldRefresh: false };
+    }
+
+    const tokenHash = hashOpaqueToken(token);
+    const session = await repository.findSessionByTokenHash(tokenHash);
+
+    if (!session || isSessionExpired(session)) {
+      if (session) {
+        await repository.deleteSession(session.id);
+      }
+
+      return { session: null, user: null, shouldRefresh: false };
+    }
+
+    const user = await repository.findUserById(session.userId);
+
+    if (!user || user.status === 'locked') {
+      await repository.deleteSession(session.id);
+
+      return { session: null, user: null, shouldRefresh: false };
+    }
+
+    return { session, user, shouldRefresh: shouldRefreshSession(session) };
   }
 
   async function invalidateSession(sessionId: string): Promise<void> {
@@ -442,6 +449,7 @@ export function createAuthService(repository: AuthRepository) {
     invalidateAllUserSessions,
     invalidateSession,
     issueToken,
+    peekRequestSession,
     requestPasswordReset,
     requireRecentAuth,
     requireUser,

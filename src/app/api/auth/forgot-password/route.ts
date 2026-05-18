@@ -3,10 +3,10 @@ import { NextResponse } from 'next/server';
 import {
   badRequest,
   extractRequestContext,
-  maybeExposeToken,
   parseAuthRouteBody,
 } from '@/lib/auth/http';
 import { getAuthService } from '@/lib/auth/runtime';
+import { sendPasswordResetEmail } from '@/lib/mailer';
 
 export async function POST(request: Request) {
   const body = await parseAuthRouteBody(request);
@@ -21,8 +21,9 @@ export async function POST(request: Request) {
     extractRequestContext(request)
   );
 
-  return NextResponse.json({
-    success: true,
-    resetToken: tokenResult ? maybeExposeToken(tokenResult.token) : undefined,
-  });
+  if (tokenResult) {
+    await sendPasswordResetEmail(body.email, tokenResult.token);
+  }
+
+  return NextResponse.json({ success: true });
 }
