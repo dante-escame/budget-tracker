@@ -142,16 +142,17 @@ export function AuthPanel() {
         <Stack spacing={3}>
           <Stack spacing={1}>
             <Chip
-              label="Secure Access"
+              label="Smart Budgeting"
               color="secondary"
               sx={{ alignSelf: 'flex-start', fontWeight: 600 }}
             />
             <Typography variant="h4" component="h2" color="text.primary">
-              Welcome back
+              Understand where your money goes
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Sign in to review your budgets, or create an account to start
-              organizing expenses with a calmer workflow.
+              Track expenses, spot spending patterns, and take control of your
+              finances. All your data stays private and encrypted—fully under
+              your control.
             </Typography>
           </Stack>
 
