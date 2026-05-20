@@ -64,7 +64,7 @@ export function AuthPanel() {
           throw new Error(body.error ?? 'Unable to sign in.');
         }
 
-        window.location.href = '/app';
+        window.location.href = '/dashboard';
         return;
       }
 

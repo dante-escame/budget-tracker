@@ -52,7 +52,7 @@ export async function requireAuthenticatedSession(
   };
 }
 
-export async function redirectIfAuthenticated(redirectTo = '/app'): Promise<void> {
+export async function redirectIfAuthenticated(redirectTo = '/dashboard'): Promise<void> {
   const authService = await getAuthService();
   const result = await authService.peekRequestSession();
 
