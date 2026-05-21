@@ -13,34 +13,27 @@ import {
   shouldRefreshSession,
 } from '@/lib/auth/session';
 import { createUserTokenMaterial, hashIpAddress, hashOpaqueToken } from '@/lib/auth/tokens';
-import type {
-  AuthIssuedToken,
-  AuthTokenKind,
-  AuthUser,
-  LoginRequestContext,
-  SessionValidationResult,
-  StepUpRequirement,
-} from '@/lib/auth/types';
+import type { Auth } from '@/lib/auth/types';
 
 export interface CreateUserInput {
   email: string;
   password: string;
-  context?: LoginRequestContext;
+  context?: Auth.LoginContext;
 }
 
 export interface PasswordLoginInput {
   email: string;
   password: string;
-  context?: LoginRequestContext;
+  context?: Auth.LoginContext;
 }
 
 export interface IssueTokenResult {
   token: string;
-  record: AuthIssuedToken;
+  record: Auth.IssuedToken;
 }
 
 export interface AuthenticatedSession {
-  user: AuthUser;
+  user: Auth.User;
   sessionId: string;
   expiresAt: Date;
 }
@@ -76,7 +69,7 @@ export class StepUpAuthenticationRequiredError extends Error {
 }
 
 export function createAuthService(repository: AuthRepository) {
-  async function createUser(input: CreateUserInput): Promise<AuthUser> {
+  async function createUser(input: CreateUserInput): Promise<Auth.User> {
     const emailNormalized = normalizeEmail(input.email);
     const emailDisplay = toDisplayEmail(input.email);
     const passwordHash = await hashPassword(input.password);
@@ -98,7 +91,7 @@ export function createAuthService(repository: AuthRepository) {
     return user;
   }
 
-  async function verifyPasswordLogin(input: PasswordLoginInput): Promise<AuthUser> {
+  async function verifyPasswordLogin(input: PasswordLoginInput): Promise<Auth.User> {
     const emailNormalized = normalizeEmail(input.email);
     const user = await repository.findUserByEmailNormalized(emailNormalized);
 
@@ -137,8 +130,8 @@ export function createAuthService(repository: AuthRepository) {
   }
 
   async function createSession(
-    user: AuthUser,
-    context?: LoginRequestContext
+    user: Auth.User,
+    context?: Auth.LoginContext
   ): Promise<AuthenticatedSession> {
     const sessionDraft = buildSessionRecord({
       userId: user.id,
@@ -166,7 +159,7 @@ export function createAuthService(repository: AuthRepository) {
     };
   }
 
-  async function validateRequestSession(): Promise<SessionValidationResult> {
+  async function validateRequestSession(): Promise<Auth.SessionValidationResult> {
     const token = await getSessionCookie();
 
     if (!token) {
@@ -209,7 +202,7 @@ export function createAuthService(repository: AuthRepository) {
     return { session, user, shouldRefresh: false };
   }
 
-  async function peekRequestSession(): Promise<SessionValidationResult> {
+  async function peekRequestSession(): Promise<Auth.SessionValidationResult> {
     const token = await getSessionCookie();
 
     if (!token) {
@@ -251,7 +244,7 @@ export function createAuthService(repository: AuthRepository) {
 
   async function issueToken(
     userId: string,
-    kind: AuthTokenKind
+    kind: Auth.TokenKind
   ): Promise<IssueTokenResult> {
     await repository.deleteIssuedTokensByUserIdAndKind(userId, kind);
 
@@ -272,9 +265,9 @@ export function createAuthService(repository: AuthRepository) {
   }
 
   async function consumeToken(
-    kind: AuthTokenKind,
+    kind: Auth.TokenKind,
     token: string
-  ): Promise<AuthIssuedToken | null> {
+  ): Promise<Auth.IssuedToken | null> {
     const tokenHash = hashOpaqueToken(token);
     const record = await repository.findIssuedTokenByHash(kind, tokenHash);
 
@@ -289,8 +282,8 @@ export function createAuthService(repository: AuthRepository) {
 
   async function verifyEmailAddress(
     token: string,
-    context?: LoginRequestContext
-  ): Promise<AuthUser | null> {
+    context?: Auth.LoginContext
+  ): Promise<Auth.User | null> {
     const record = await consumeToken('email_verification', token);
 
     if (!record) {
@@ -323,7 +316,7 @@ export function createAuthService(repository: AuthRepository) {
 
   async function requestPasswordReset(
     email: string,
-    context?: LoginRequestContext
+    context?: Auth.LoginContext
   ): Promise<IssueTokenResult | null> {
     const emailNormalized = normalizeEmail(email);
     const user = await repository.findUserByEmailNormalized(emailNormalized);
@@ -348,8 +341,8 @@ export function createAuthService(repository: AuthRepository) {
   async function resetPassword(
     token: string,
     newPassword: string,
-    context?: LoginRequestContext
-  ): Promise<AuthUser | null> {
+    context?: Auth.LoginContext
+  ): Promise<Auth.User | null> {
     const record = await consumeToken('password_reset', token);
 
     if (!record) {
@@ -383,7 +376,7 @@ export function createAuthService(repository: AuthRepository) {
     return updatedUser;
   }
 
-  async function requireUser(): Promise<NonNullable<SessionValidationResult['user']>> {
+  async function requireUser(): Promise<NonNullable<Auth.SessionValidationResult['user']>> {
     const result = await validateRequestSession();
 
     if (!result.user) {
@@ -394,7 +387,7 @@ export function createAuthService(repository: AuthRepository) {
   }
 
   async function requireVerifiedUser(): Promise<
-    NonNullable<SessionValidationResult['user']>
+    NonNullable<Auth.SessionValidationResult['user']>
   > {
     const result = await validateRequestSession();
 
@@ -409,7 +402,7 @@ export function createAuthService(repository: AuthRepository) {
     return result.user;
   }
 
-  async function requireRecentAuth(): Promise<SessionValidationResult> {
+  async function requireRecentAuth(): Promise<Auth.SessionValidationResult> {
     const result = await validateRequestSession();
 
     if (!result.user || !result.session) {
@@ -423,7 +416,7 @@ export function createAuthService(repository: AuthRepository) {
     return result;
   }
 
-  async function getStepUpRequirementForSensitiveAction(): Promise<StepUpRequirement> {
+  async function getStepUpRequirementForSensitiveAction(): Promise<Auth.StepUpRequirement> {
     const result = await validateRequestSession();
 
     if (!result.user || !result.session) {
@@ -462,7 +455,7 @@ export function createAuthService(repository: AuthRepository) {
 }
 
 function getIssuedTokenTtlSeconds(
-  kind: AuthTokenKind,
+  kind: Auth.TokenKind,
   config: typeof authConfig
 ): number {
   if (kind === 'email_verification') {

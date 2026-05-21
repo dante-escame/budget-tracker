@@ -20,12 +20,7 @@ import type {
   UserDocument,
   VerificationTokenDocument,
 } from '@/lib/auth/mongodb-documents';
-import type {
-  AuthIssuedToken,
-  AuthSession,
-  AuthTokenKind,
-  AuthUser,
-} from '@/lib/auth/types';
+import type { Auth } from '@/lib/auth/types';
 
 export async function createMongoAuthRepository(): Promise<AuthRepository> {
   const collections = await getAuthCollections();
@@ -216,7 +211,7 @@ export async function createMongoAuthRepository(): Promise<AuthRepository> {
 async function findUserById(
   collection: Awaited<ReturnType<typeof getAuthCollections>>['users'],
   userId: string
-): Promise<AuthUser | null> {
+): Promise<Auth.User | null> {
   const document = await collection.findOne({
     _id: parseObjectId(userId),
   });
@@ -251,7 +246,7 @@ function buildUserUpdate(input: UpdateAuthUserInput): Partial<UserDocument> {
 }
 
 function buildSessionUpdate(
-  input: Partial<Pick<AuthSession, 'lastSeenAt' | 'expiresAt' | 'level' | 'recentAuthAt'>>
+  input: Partial<Pick<Auth.Session, 'lastSeenAt' | 'expiresAt' | 'level' | 'recentAuthAt'>>
 ): Partial<SessionDocument> {
   const update: Partial<SessionDocument> = {};
 
@@ -274,7 +269,7 @@ function buildSessionUpdate(
   return update;
 }
 
-function mapUserDocument(document: WithId<UserDocument>): AuthUser {
+function mapUserDocument(document: WithId<UserDocument>): Auth.User {
   return {
     id: document._id.toHexString(),
     emailNormalized: document.email_normalized,
@@ -289,7 +284,7 @@ function mapUserDocument(document: WithId<UserDocument>): AuthUser {
   };
 }
 
-function mapSessionDocument(document: WithId<SessionDocument>): AuthSession {
+function mapSessionDocument(document: WithId<SessionDocument>): Auth.Session {
   return {
     id: document._id.toHexString(),
     userId: document.user_id.toHexString(),
@@ -305,9 +300,9 @@ function mapSessionDocument(document: WithId<SessionDocument>): AuthSession {
 }
 
 function mapIssuedTokenDocument(
-  kind: AuthTokenKind,
+  kind: Auth.TokenKind,
   document: WithId<VerificationTokenDocument> | WithId<PasswordResetTokenDocument>
-): AuthIssuedToken {
+): Auth.IssuedToken {
   return {
     id: document._id.toHexString(),
     userId: document.user_id.toHexString(),
@@ -329,7 +324,7 @@ function parseObjectId(value: string): ObjectId {
 
 function getTokenCollection(
   collections: Awaited<ReturnType<typeof getAuthCollections>>,
-  kind: AuthTokenKind
+  kind: Auth.TokenKind
 ) {
   return kind === 'email_verification'
     ? collections.emailVerificationTokens

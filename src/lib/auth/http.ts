@@ -2,7 +2,7 @@ import 'server-only';
 
 import { NextResponse } from 'next/server';
 
-import type { LoginRequestContext } from '@/lib/auth/types';
+import type { Auth } from '@/lib/auth/types';
 
 export interface AuthRouteBody {
   email?: string;
@@ -10,7 +10,7 @@ export interface AuthRouteBody {
   token?: string;
 }
 
-export function extractRequestContext(request: Request): LoginRequestContext {
+export function extractRequestContext(request: Request): Auth.LoginContext {
   return {
     ipAddress: getIpAddress(request),
     userAgent: request.headers.get('user-agent'),

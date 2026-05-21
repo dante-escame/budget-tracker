@@ -1,6 +1,6 @@
 import type { ObjectId } from 'mongodb';
 
-import type { AuthSessionLevel, AuthUserStatus } from '@/lib/auth/types';
+import type { Auth } from '@/lib/auth/types';
 
 export interface UserDocument {
   _id?: ObjectId;
@@ -12,7 +12,7 @@ export interface UserDocument {
   created_at: Date;
   updated_at: Date;
   last_login_at: Date | null;
-  status: AuthUserStatus;
+  status: Auth.UserStatus;
 }
 
 export interface SessionDocument {
@@ -24,7 +24,7 @@ export interface SessionDocument {
   expires_at: Date;
   ip_hash: string | null;
   user_agent: string | null;
-  level: AuthSessionLevel;
+  level: Auth.SessionLevel;
   recent_auth_at: Date | null;
 }
 
