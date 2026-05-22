@@ -1,6 +1,8 @@
 'use client';
 
-import { startTransition, useState } from 'react';
+import { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -10,32 +12,27 @@ import CardContent from '@mui/material/CardContent';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { signInSchema, type SignInFields } from '@/lib/auth/schemas';
 
 interface AuthApiResponse {
   error?: string;
 }
 
 export function SignInForm() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<SignInFields>({ resolver: zodResolver(signInSchema) });
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    startTransition(() => {
-      void submit();
-    });
-  }
-
-  async function submit() {
-    setPending(true);
-    setError(null);
+  async function onSubmit(data: SignInFields) {
+    setServerError(null);
     try {
       const response = await fetch('/api/auth/sign-in', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(data),
       });
       if (!response.ok) {
         const body = (await response.json()) as AuthApiResponse;
@@ -43,9 +40,7 @@ export function SignInForm() {
       }
       window.location.href = '/dashboard';
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
-    } finally {
-      setPending(false);
+      setServerError(err instanceof Error ? err.message : 'Something went wrong.');
     }
   }
 
@@ -63,37 +58,50 @@ export function SignInForm() {
             Sign in to your account
           </Typography>
 
-          {error ? <Alert severity="error">{error}</Alert> : null}
+          {serverError ? <Alert severity="error">{serverError}</Alert> : null}
 
-          <Box component="form" onSubmit={handleSubmit} noValidate>
+          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
             <Stack spacing={2.5}>
-              <TextField
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-                required
-                fullWidth
+              <Controller
+                name="email"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Email"
+                    type="email"
+                    autoComplete="email"
+                    fullWidth
+                    error={!!errors.email}
+                    helperText={errors.email?.message}
+                  />
+                )}
               />
-              <TextField
-                label="Password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                required
-                fullWidth
-                helperText="Use the password associated with this account."
+              <Controller
+                name="password"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Password"
+                    type="password"
+                    autoComplete="current-password"
+                    fullWidth
+                    error={!!errors.password}
+                    helperText={
+                      errors.password?.message ?? 'Use the password associated with this account.'
+                    }
+                  />
+                )}
               />
               <Button
                 type="submit"
                 variant="contained"
                 color="primary"
                 size="large"
-                disabled={pending}
+                disabled={isSubmitting}
               >
-                {pending ? 'Signing in...' : 'Sign in'}
+                {isSubmitting ? 'Signing in...' : 'Sign in'}
               </Button>
               <Button
                 component={Link}

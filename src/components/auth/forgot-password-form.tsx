@@ -1,6 +1,8 @@
 'use client';
 
-import { startTransition, useState } from 'react';
+import { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -10,6 +12,7 @@ import CardContent from '@mui/material/CardContent';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { forgotPasswordSchema, type ForgotPasswordFields } from '@/lib/auth/schemas';
 
 interface AuthApiResponse {
   error?: string;
@@ -24,25 +27,20 @@ interface Feedback {
 }
 
 export function ForgotPasswordForm() {
-  const [email, setEmail] = useState('');
-  const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<ForgotPasswordFields>({ resolver: zodResolver(forgotPasswordSchema) });
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    startTransition(() => {
-      void submit();
-    });
-  }
-
-  async function submit() {
-    setPending(true);
+  async function onSubmit(data: ForgotPasswordFields) {
     setFeedback(null);
     try {
       const response = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify(data),
       });
       const body = (await response.json()) as AuthApiResponse;
       if (!response.ok) {
@@ -63,8 +61,6 @@ export function ForgotPasswordForm() {
         kind: 'error',
         message: err instanceof Error ? err.message : 'Something went wrong.',
       });
-    } finally {
-      setPending(false);
     }
   }
 
@@ -108,25 +104,31 @@ export function ForgotPasswordForm() {
             </Alert>
           ) : null}
 
-          <Box component="form" onSubmit={handleSubmit} noValidate>
+          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
             <Stack spacing={2.5}>
-              <TextField
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-                required
-                fullWidth
+              <Controller
+                name="email"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Email"
+                    type="email"
+                    autoComplete="email"
+                    fullWidth
+                    error={!!errors.email}
+                    helperText={errors.email?.message}
+                  />
+                )}
               />
               <Button
                 type="submit"
                 variant="contained"
                 color="primary"
                 size="large"
-                disabled={pending}
+                disabled={isSubmitting}
               >
-                {pending ? 'Sending...' : 'Send reset link'}
+                {isSubmitting ? 'Sending...' : 'Send reset link'}
               </Button>
             </Stack>
           </Box>

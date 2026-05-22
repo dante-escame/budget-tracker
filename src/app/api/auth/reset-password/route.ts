@@ -3,22 +3,21 @@ import { NextResponse } from 'next/server';
 import {
   badRequest,
   extractRequestContext,
-  parseAuthRouteBody,
+  parseBodyWithSchema,
   serializeUser,
 } from '@/lib/auth/http';
+import { resetPasswordSchema } from '@/lib/auth/schemas';
 import { getAuthService } from '@/lib/auth/runtime';
 
 export async function POST(request: Request) {
-  const body = await parseAuthRouteBody(request);
-
-  if (!body.token || !body.password) {
-    return badRequest('Reset token and password are required.');
-  }
+  const parsed = await parseBodyWithSchema(request, resetPasswordSchema);
+  if (!parsed.ok) return parsed.response;
+  const { token, password } = parsed.data;
 
   const authService = await getAuthService();
   const user = await authService.resetPassword(
-    body.token,
-    body.password,
+    token,
+    password,
     extractRequestContext(request)
   );
 
@@ -26,8 +25,5 @@ export async function POST(request: Request) {
     return badRequest('Reset token is invalid or expired.');
   }
 
-  return NextResponse.json({
-    success: true,
-    user: serializeUser(user),
-  });
+  return NextResponse.json({ success: true, user: serializeUser(user) });
 }

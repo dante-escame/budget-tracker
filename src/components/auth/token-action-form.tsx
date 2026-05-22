@@ -1,6 +1,9 @@
 'use client';
 
-import { startTransition, useState } from 'react';
+import { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import type { Resolver } from 'react-hook-form';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import Alert from '@mui/material/Alert';
@@ -11,6 +14,7 @@ import CardContent from '@mui/material/CardContent';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { resetPasswordSchema, verifyEmailSchema } from '@/lib/auth/schemas';
 
 type TokenActionKind = 'verify_email' | 'reset_password';
 
@@ -22,50 +26,48 @@ interface AuthApiResponse {
   error?: string;
 }
 
+// Union of both possible shapes; resolver enforces the right schema per `kind`.
+interface TokenFormValues {
+  token: string;
+  password: string;
+}
+
 export function TokenActionForm({ kind }: TokenActionFormProps) {
   const searchParams = useSearchParams();
   const searchToken = searchParams.get('token') ?? '';
-  const [token, setToken] = useState('');
-  const [password, setPassword] = useState('');
-  const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<{
     kind: 'success' | 'error' | 'info';
     message: string;
   } | null>(null);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const schema = kind === 'verify_email' ? verifyEmailSchema : resetPasswordSchema;
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<TokenFormValues>({
+    resolver: zodResolver(schema) as unknown as Resolver<TokenFormValues>,
+    defaultValues: { token: searchToken, password: '' },
+  });
 
-    startTransition(() => {
-      void submitTokenAction();
-    });
-  }
-
-  async function submitTokenAction() {
-    setPending(true);
+  async function onSubmit(data: TokenFormValues) {
     setFeedback(null);
-
     try {
-      const response = await fetch(
-        kind === 'verify_email'
-          ? '/api/auth/verify-email'
-          : '/api/auth/reset-password',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(
-            kind === 'verify_email'
-              ? { token: token || searchToken }
-              : { token: token || searchToken, password }
-          ),
-        }
-      );
-      const body = (await response.json()) as AuthApiResponse;
+      const endpoint =
+        kind === 'verify_email' ? '/api/auth/verify-email' : '/api/auth/reset-password';
+      const body =
+        kind === 'verify_email' ? { token: data.token } : { token: data.token, password: data.password };
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const responseBody = (await response.json()) as AuthApiResponse;
 
       if (!response.ok) {
-        throw new Error(body.error ?? 'Unable to complete this action.');
+        throw new Error(responseBody.error ?? 'Unable to complete this action.');
       }
 
       setFeedback({
@@ -77,15 +79,13 @@ export function TokenActionForm({ kind }: TokenActionFormProps) {
       });
 
       if (kind === 'reset_password') {
-        setPassword('');
+        reset({ token: data.token, password: '' });
       }
     } catch (error) {
       setFeedback({
         kind: 'error',
         message: error instanceof Error ? error.message : 'Something went wrong.',
       });
-    } finally {
-      setPending(false);
     }
   }
 
@@ -114,25 +114,37 @@ export function TokenActionForm({ kind }: TokenActionFormProps) {
             <Alert severity={feedback.kind}>{feedback.message}</Alert>
           ) : null}
 
-          <Box component="form" onSubmit={handleSubmit} noValidate>
+          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
             <Stack spacing={2.5}>
-              <TextField
-                label="Token"
-                value={token || searchToken}
-                onChange={(event) => setToken(event.target.value)}
-                required
-                fullWidth
+              <Controller
+                name="token"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Token"
+                    fullWidth
+                    error={!!errors.token}
+                    helperText={errors.token?.message}
+                  />
+                )}
               />
 
               {kind === 'reset_password' ? (
-                <TextField
-                  label="New password"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  autoComplete="new-password"
-                  required
-                  fullWidth
+                <Controller
+                  name="password"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="New password"
+                      type="password"
+                      autoComplete="new-password"
+                      fullWidth
+                      error={!!errors.password}
+                      helperText={errors.password?.message}
+                    />
+                  )}
                 />
               ) : null}
 
@@ -141,9 +153,9 @@ export function TokenActionForm({ kind }: TokenActionFormProps) {
                 variant="contained"
                 color="primary"
                 size="large"
-                disabled={pending}
+                disabled={isSubmitting}
               >
-                {pending
+                {isSubmitting
                   ? 'Working...'
                   : kind === 'verify_email'
                     ? 'Verify email'

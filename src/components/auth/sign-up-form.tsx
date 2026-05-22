@@ -1,6 +1,8 @@
 'use client';
 
-import { startTransition, useState } from 'react';
+import { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -10,6 +12,7 @@ import CardContent from '@mui/material/CardContent';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { signUpSchema, type SignUpFields } from '@/lib/auth/schemas';
 
 interface AuthApiResponse {
   error?: string;
@@ -24,32 +27,27 @@ interface Feedback {
 }
 
 export function SignUpForm() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<SignUpFields>({ resolver: zodResolver(signUpSchema) });
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    startTransition(() => {
-      void submit();
-    });
-  }
-
-  async function submit() {
-    setPending(true);
+  async function onSubmit(data: SignUpFields) {
     setFeedback(null);
     try {
       const response = await fetch('/api/auth/sign-up', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(data),
       });
       const body = (await response.json()) as AuthApiResponse;
       if (!response.ok) {
         throw new Error(body.error ?? 'Unable to create account.');
       }
-      setPassword('');
+      reset({ email: data.email, password: '' });
       setFeedback({
         kind: 'success',
         message: body.verificationToken
@@ -65,8 +63,6 @@ export function SignUpForm() {
         kind: 'error',
         message: err instanceof Error ? err.message : 'Something went wrong.',
       });
-    } finally {
-      setPending(false);
     }
   }
 
@@ -118,35 +114,48 @@ export function SignUpForm() {
             </Alert>
           ) : null}
 
-          <Box component="form" onSubmit={handleSubmit} noValidate>
+          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
             <Stack spacing={2.5}>
-              <TextField
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-                required
-                fullWidth
+              <Controller
+                name="email"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Email"
+                    type="email"
+                    autoComplete="email"
+                    fullWidth
+                    error={!!errors.email}
+                    helperText={errors.email?.message}
+                  />
+                )}
               />
-              <TextField
-                label="Create a password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-                required
-                fullWidth
-                helperText="Passwords follow the repository password policy."
+              <Controller
+                name="password"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Create a password"
+                    type="password"
+                    autoComplete="new-password"
+                    fullWidth
+                    error={!!errors.password}
+                    helperText={
+                      errors.password?.message ?? 'Passwords follow the repository password policy.'
+                    }
+                  />
+                )}
               />
               <Button
                 type="submit"
                 variant="contained"
                 color="primary"
                 size="large"
-                disabled={pending}
+                disabled={isSubmitting}
               >
-                {pending ? 'Creating account...' : 'Create account'}
+                {isSubmitting ? 'Creating account...' : 'Create account'}
               </Button>
             </Stack>
           </Box>

@@ -18,7 +18,7 @@ export {
   conflict,
   extractRequestContext,
   maybeExposeToken,
-  parseAuthRouteBody,
+  parseBodyWithSchema,
   serializeSession,
   serializeUser,
   unauthorized,

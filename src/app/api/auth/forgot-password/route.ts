@@ -1,28 +1,23 @@
 import { NextResponse } from 'next/server';
 
-import {
-  badRequest,
-  extractRequestContext,
-  parseAuthRouteBody,
-} from '@/lib/auth/http';
+import { extractRequestContext, parseBodyWithSchema } from '@/lib/auth/http';
+import { forgotPasswordSchema } from '@/lib/auth/schemas';
 import { getAuthService } from '@/lib/auth/runtime';
 import { sendPasswordResetEmail } from '@/lib/mailer';
 
 export async function POST(request: Request) {
-  const body = await parseAuthRouteBody(request);
-
-  if (!body.email) {
-    return badRequest('Email is required.');
-  }
+  const parsed = await parseBodyWithSchema(request, forgotPasswordSchema);
+  if (!parsed.ok) return parsed.response;
+  const { email } = parsed.data;
 
   const authService = await getAuthService();
   const tokenResult = await authService.requestPasswordReset(
-    body.email,
+    email,
     extractRequestContext(request)
   );
 
   if (tokenResult) {
-    await sendPasswordResetEmail(body.email, tokenResult.token);
+    await sendPasswordResetEmail(email, tokenResult.token);
   }
 
   return NextResponse.json({ success: true });
