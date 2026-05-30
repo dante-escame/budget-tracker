@@ -15,12 +15,14 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 
+type NavItemConfig = { label: string; href: string; Icon: React.ElementType };
+
 const NAV_ITEMS = [
   { label: 'Home', href: '/dashboard/home', Icon: HomeRoundedIcon },
   { label: 'Statement', href: '/dashboard/statement', Icon: ReceiptLongRoundedIcon },
   { label: 'Investments', href: '/dashboard/investments', Icon: TrendingUpRoundedIcon },
   { label: 'Objectives', href: '/dashboard/objectives', Icon: EmojiEventsRoundedIcon },
-] as const;
+] satisfies NavItemConfig[];
 
 function NavItem({
   label,
