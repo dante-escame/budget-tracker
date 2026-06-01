@@ -30,4 +30,38 @@ export interface EntryRepository {
 
   /** Distinct months (by competence) that have at least one entry, newest first. */
   listAvailableMonths(userId: string): Promise<Entry.MonthOption[]>;
+
+  /** A user's tagging rules, ordered by ascending priority. */
+  listTaggingRules(userId: string): Promise<Entry.TaggingRuleRecord[]>;
+
+  /** The global default rules (from `default_tagging_rules`), as creatable inputs. */
+  listDefaultTaggingRules(): Promise<Entry.TaggingRuleInput[]>;
+
+  /** Creates a tagging rule. When priority is omitted it is appended to the end. */
+  createTaggingRule(
+    userId: string,
+    input: Entry.TaggingRuleInput
+  ): Promise<Entry.TaggingRuleRecord>;
+
+  /** Inserts several rules at once (used to seed defaults for a new user). */
+  createManyTaggingRules(
+    userId: string,
+    inputs: Entry.TaggingRuleInput[]
+  ): Promise<Entry.TaggingRuleRecord[]>;
+
+  /** Updates a rule scoped to the user. Returns null when it doesn't exist. */
+  updateTaggingRule(
+    userId: string,
+    ruleId: string,
+    input: Entry.TaggingRuleInput
+  ): Promise<Entry.TaggingRuleRecord | null>;
+
+  /** Deletes a rule scoped to the user. Returns whether a rule was removed. */
+  deleteTaggingRule(userId: string, ruleId: string): Promise<boolean>;
+
+  /** Sets the category on many of the user's entries at once. Returns the count modified. */
+  bulkSetCategories(
+    userId: string,
+    updates: { id: string; category: Entry.Category }[]
+  ): Promise<number>;
 }

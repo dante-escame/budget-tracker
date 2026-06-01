@@ -123,4 +123,61 @@ export namespace Entry {
     skipped: number;
     errors: { line: number; message: string }[];
   }
+
+  // How a tagging rule's pattern is compared against a transaction's text.
+  // Kept minimal for now; 'regex'/'starts_with' can be added later.
+  export type RuleMatchType = 'contains';
+
+  // A user-managed rule that auto-assigns a category to transactions whose
+  // text matches `pattern`. Stored per user in the `entry_tagging_rules`
+  // collection and applied on import and via "Apply All Rules".
+  export interface TaggingRule {
+    _id?: ObjectId;
+    user_id: ObjectId;
+    pattern: string; // matched against merchant + description
+    match_type: RuleMatchType;
+    category: Category;
+    flow: Flow | null; // optional constraint; null = applies to any flow
+    priority: number; // lower is evaluated first; first match wins
+    created_at: Date;
+    updated_at: Date;
+  }
+
+  // Serializable view of a tagging rule, safe to pass to Client Components.
+  export interface TaggingRuleRecord {
+    id: string;
+    pattern: string;
+    matchType: RuleMatchType;
+    category: Category;
+    flow: Flow | null;
+    priority: number;
+  }
+
+  // Input accepted when creating or updating a tagging rule.
+  export interface TaggingRuleInput {
+    pattern: string;
+    matchType: RuleMatchType;
+    category: Category;
+    flow: Flow | null;
+    priority?: number;
+  }
+
+  // A global default rule (no user_id). The `default_tagging_rules` collection
+  // holds these and they are copied into each user's own rules at sign-up.
+  export interface DefaultTaggingRule {
+    _id?: ObjectId;
+    pattern: string;
+    match_type: RuleMatchType;
+    category: Category;
+    flow: Flow | null;
+    priority: number;
+    created_at: Date;
+    updated_at: Date;
+  }
+
+  // Result of applying all of a user's rules to a month of entries.
+  export interface ApplyRulesSummary {
+    total: number;
+    updated: number;
+  }
 }

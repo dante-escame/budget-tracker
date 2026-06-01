@@ -3,10 +3,13 @@ import 'server-only';
 import type { Collection, Db } from 'mongodb';
 
 import { getMongoDb } from '@/lib/mongodb';
+import { DEFAULT_TAGGING_RULES } from '@/lib/entries/categorize';
 import type { Entry } from '@/lib/entries/mongodb-documents';
 
 export interface EntryCollections {
   entries: Collection<Entry.Document>;
+  taggingRules: Collection<Entry.TaggingRule>;
+  defaultTaggingRules: Collection<Entry.DefaultTaggingRule>;
 }
 
 declare global {
@@ -18,7 +21,9 @@ export async function getEntryCollections(): Promise<EntryCollections> {
   const collections = createEntryCollections(db);
 
   if (!globalThis.__entryIndexesPromise__) {
-    globalThis.__entryIndexesPromise__ = ensureEntryIndexes(collections);
+    globalThis.__entryIndexesPromise__ = ensureEntryIndexes(collections).then(() =>
+      ensureDefaultTaggingRules(collections)
+    );
   }
 
   await globalThis.__entryIndexesPromise__;
@@ -29,6 +34,10 @@ export async function getEntryCollections(): Promise<EntryCollections> {
 function createEntryCollections(db: Db): EntryCollections {
   return {
     entries: db.collection<Entry.Document>('entries'),
+    taggingRules: db.collection<Entry.TaggingRule>('entry_tagging_rules'),
+    defaultTaggingRules: db.collection<Entry.DefaultTaggingRule>(
+      'default_tagging_rules'
+    ),
   };
 }
 
@@ -74,4 +83,39 @@ async function ensureEntryIndexes(collections: EntryCollections): Promise<void> 
       sparse: true,
     },
   ]);
+
+  // Tagging rules are listed and evaluated per user in priority order.
+  await collections.taggingRules.createIndexes([
+    {
+      key: { user_id: 1, priority: 1 },
+      name: 'tagging_rules_user_priority',
+    },
+  ]);
+}
+
+// Bootstraps the global `default_tagging_rules` collection from the code-defined
+// seed list the first time it is empty. These defaults are the source copied to
+// each user at sign-up; once populated they can be edited directly in the DB.
+async function ensureDefaultTaggingRules(
+  collections: EntryCollections
+): Promise<void> {
+  const existing = await collections.defaultTaggingRules.estimatedDocumentCount();
+  if (existing > 0) return;
+
+  const now = new Date();
+  const documents: Entry.DefaultTaggingRule[] = DEFAULT_TAGGING_RULES.map(
+    (rule) => ({
+      pattern: rule.pattern,
+      match_type: rule.matchType,
+      category: rule.category,
+      flow: rule.flow,
+      priority: rule.priority ?? 0,
+      created_at: now,
+      updated_at: now,
+    })
+  );
+
+  if (documents.length > 0) {
+    await collections.defaultTaggingRules.insertMany(documents);
+  }
 }

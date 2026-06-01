@@ -9,6 +9,7 @@ import {
 } from '@/lib/auth/http';
 import { signUpSchema } from '@/lib/auth/schemas';
 import { getAuthService } from '@/lib/auth/runtime';
+import { getEntryService } from '@/lib/entries/runtime';
 import { sendVerificationEmail } from '@/lib/mailer';
 
 export async function POST(request: Request) {
@@ -21,6 +22,12 @@ export async function POST(request: Request) {
 
   try {
     const user = await authService.createUser({ email, password, context });
+
+    // Give the new user their own copy of the global default tagging rules so
+    // imports are categorized from day one.
+    const entryService = await getEntryService();
+    await entryService.seedDefaultRulesForUser(user.id);
+
     const verification = await authService.issueToken(user.id, 'email_verification');
 
     await sendVerificationEmail(user.emailDisplay, verification.token);

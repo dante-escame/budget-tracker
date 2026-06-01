@@ -2,12 +2,19 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Container from '@mui/material/Container';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
+import Snackbar from '@mui/material/Snackbar';
 import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -19,8 +26,10 @@ import TableRow from '@mui/material/TableRow';
 import TableSortLabel from '@mui/material/TableSortLabel';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded';
 import FileUploadRoundedIcon from '@mui/icons-material/FileUploadRounded';
 
+import { CATEGORY_LABELS } from '@/lib/entries/categories';
 import type { Entry } from '@/lib/entries';
 import { ImportStatementDialog } from '@/components/statement/ImportStatementDialog';
 
@@ -54,6 +63,9 @@ export function StatementView({
 }) {
   const router = useRouter();
   const [importOpen, setImportOpen] = useState(false);
+  const [applyOpen, setApplyOpen] = useState(false);
+  const [applyPending, setApplyPending] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('occurredAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [page, setPage] = useState(0);
@@ -88,6 +100,34 @@ export function StatementView({
   function handleMonthChange(value: string) {
     setPage(0);
     router.push(`/dashboard/statement?month=${value}`);
+  }
+
+  async function handleApplyRules() {
+    setApplyPending(true);
+    try {
+      const response = await fetch('/api/entries/apply-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ month: selectedValue }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setToast(data?.error ?? 'Could not apply rules.');
+        return;
+      }
+
+      const summary: Entry.ApplyRulesSummary = await response.json();
+      setApplyOpen(false);
+      setToast(
+        `Applied rules: ${summary.updated} of ${summary.total} transactions updated.`
+      );
+      router.refresh();
+    } catch {
+      setToast('Network error. Please try again.');
+    } finally {
+      setApplyPending(false);
+    }
   }
 
   return (
@@ -132,6 +172,15 @@ export function StatementView({
                 </MenuItem>
               ))}
             </TextField>
+
+            <Button
+              variant="outlined"
+              startIcon={<AutoFixHighRoundedIcon />}
+              onClick={() => setApplyOpen(true)}
+              disabled={entries.length === 0}
+            >
+              Apply All Rules
+            </Button>
 
             <Button
               variant="contained"
@@ -209,6 +258,45 @@ export function StatementView({
         onClose={() => setImportOpen(false)}
         onImported={() => router.refresh()}
       />
+
+      <Dialog open={applyOpen} onClose={() => !applyPending && setApplyOpen(false)}>
+        <DialogTitle>Apply tagging rules?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Apply your tagging rules to {toMonthLabel(selectedMonth)}? This
+            overwrites the category of every transaction that matches a rule.
+            Transactions matching no rule are left unchanged.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setApplyOpen(false)} disabled={applyPending}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleApplyRules}
+            disabled={applyPending}
+          >
+            Apply
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={toast !== null}
+        autoHideDuration={5000}
+        onClose={() => setToast(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          severity="info"
+          variant="filled"
+          onClose={() => setToast(null)}
+          sx={{ width: '100%' }}
+        >
+          {toast}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 }
@@ -231,7 +319,7 @@ function EntryRow({ entry }: { entry: Entry.Record }) {
       </TableCell>
       <TableCell>
         <Chip
-          label={toLabel(entry.category)}
+          label={CATEGORY_LABELS[entry.category]}
           size="small"
           sx={{ bgcolor: 'secondary.light', color: 'secondary.contrastText' }}
         />

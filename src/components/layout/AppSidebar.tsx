@@ -13,6 +13,7 @@ import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
+import SellRoundedIcon from '@mui/icons-material/SellRounded';
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 
 type NavItemConfig = { label: string; href: string; Icon: React.ElementType };
@@ -20,6 +21,7 @@ type NavItemConfig = { label: string; href: string; Icon: React.ElementType };
 const NAV_ITEMS = [
   { label: 'Home', href: '/dashboard/home', Icon: HomeRoundedIcon },
   { label: 'Statement', href: '/dashboard/statement', Icon: ReceiptLongRoundedIcon },
+  { label: 'Tagging Rules', href: '/dashboard/tagging-rules', Icon: SellRoundedIcon },
   { label: 'Investments', href: '/dashboard/investments', Icon: TrendingUpRoundedIcon },
   { label: 'Objectives', href: '/dashboard/objectives', Icon: EmojiEventsRoundedIcon },
 ] satisfies NavItemConfig[];
