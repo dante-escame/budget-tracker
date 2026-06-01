@@ -39,6 +39,15 @@ async function ensureEntryIndexes(collections: EntryCollections): Promise<void> 
       name: 'entries_user_occurred_at',
     },
     {
+      // Idempotency guard for imported statements: a given source id can only
+      // exist once per user. Sparse so manually-created entries (no external_id)
+      // are not constrained.
+      key: { user_id: 1, external_id: 1 },
+      name: 'entries_user_external_id',
+      unique: true,
+      sparse: true,
+    },
+    {
       key: { user_id: 1, flow: 1, occurred_at: -1 },
       name: 'entries_user_flow_occurred_at',
     },

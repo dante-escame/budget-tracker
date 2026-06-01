@@ -68,6 +68,8 @@ export namespace Entry {
     _id?: ObjectId;
     user_id: ObjectId;
 
+    external_id?: string; // source id from an imported statement (idempotency key)
+
     description: string;
     short_description: string;
     value: number; // in centavos (integer) — avoids float precision bugs
@@ -92,5 +94,33 @@ export namespace Entry {
     attachments?: string[];
 
     deleted_at: Date | null;
+  }
+
+  // Serializable view of an entry, safe to pass from Server to Client Components.
+  export interface Record {
+    id: string;
+    description: string;
+    shortDescription: string;
+    value: number; // absolute centavos
+    flow: Flow;
+    type: PaymentType;
+    category: Category;
+    currency: string;
+    occurredAt: string; // ISO date
+    status: Status;
+    merchant: string | null;
+  }
+
+  // A month that has at least one entry, used by the month filter dropdown.
+  export interface MonthOption {
+    year: number;
+    month: number; // 1-12
+  }
+
+  export interface ImportSummary {
+    total: number;
+    inserted: number;
+    skipped: number;
+    errors: { line: number; message: string }[];
   }
 }
