@@ -4,39 +4,35 @@ import {
   badRequest,
   conflict,
   extractRequestContext,
-  parseAuthRouteBody,
+  parseBodyWithSchema,
   serializeUser,
 } from '@/lib/auth/http';
+import { signUpSchema } from '@/lib/auth/schemas';
 import { getAuthService } from '@/lib/auth/runtime';
+import { getEntryService } from '@/lib/entries/runtime';
 import { sendVerificationEmail } from '@/lib/mailer';
 
 export async function POST(request: Request) {
-  const body = await parseAuthRouteBody(request);
-
-  if (!body.email || !body.password) {
-    return badRequest('Email and password are required.');
-  }
+  const parsed = await parseBodyWithSchema(request, signUpSchema);
+  if (!parsed.ok) return parsed.response;
+  const { email, password } = parsed.data;
 
   const authService = await getAuthService();
   const context = extractRequestContext(request);
 
   try {
-    const user = await authService.createUser({
-      email: body.email,
-      password: body.password,
-      context,
-    });
-    const verification = await authService.issueToken(
-      user.id,
-      'email_verification'
-    );
+    const user = await authService.createUser({ email, password, context });
+
+    // Give the new user their own copy of the global default tagging rules so
+    // imports are categorized from day one.
+    const entryService = await getEntryService();
+    await entryService.seedDefaultRulesForUser(user.id);
+
+    const verification = await authService.issueToken(user.id, 'email_verification');
 
     await sendVerificationEmail(user.emailDisplay, verification.token);
 
-    return NextResponse.json(
-      { user: serializeUser(user) },
-      { status: 201 }
-    );
+    return NextResponse.json({ user: serializeUser(user) }, { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message.includes('already exists')) {
       return conflict(error.message);

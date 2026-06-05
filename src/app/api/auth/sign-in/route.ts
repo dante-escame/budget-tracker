@@ -3,10 +3,11 @@ import { NextResponse } from 'next/server';
 import {
   badRequest,
   extractRequestContext,
-  parseAuthRouteBody,
+  parseBodyWithSchema,
   serializeUser,
   unauthorized,
 } from '@/lib/auth/http';
+import { signInSchema } from '@/lib/auth/schemas';
 import { getAuthService } from '@/lib/auth/runtime';
 import {
   AuthenticationRequiredError,
@@ -15,21 +16,15 @@ import {
 } from '@/lib/auth/service';
 
 export async function POST(request: Request) {
-  const body = await parseAuthRouteBody(request);
-
-  if (!body.email || !body.password) {
-    return badRequest('Email and password are required.');
-  }
+  const parsed = await parseBodyWithSchema(request, signInSchema);
+  if (!parsed.ok) return parsed.response;
+  const { email, password } = parsed.data;
 
   const authService = await getAuthService();
   const context = extractRequestContext(request);
 
   try {
-    const user = await authService.verifyPasswordLogin({
-      email: body.email,
-      password: body.password,
-      context,
-    });
+    const user = await authService.verifyPasswordLogin({ email, password, context });
     const authenticatedSession = await authService.createSession(user, context);
 
     return NextResponse.json({

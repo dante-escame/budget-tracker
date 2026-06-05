@@ -18,7 +18,7 @@ export {
   conflict,
   extractRequestContext,
   maybeExposeToken,
-  parseAuthRouteBody,
+  parseBodyWithSchema,
   serializeSession,
   serializeUser,
   unauthorized,
@@ -54,15 +54,4 @@ export {
   hashIpAddress,
   hashOpaqueToken,
 } from '@/lib/auth/tokens';
-export type {
-  AuthEvent,
-  AuthIssuedToken,
-  AuthSession,
-  AuthSessionLevel,
-  AuthTokenKind,
-  AuthUser,
-  AuthUserStatus,
-  LoginRequestContext,
-  SessionValidationResult,
-  StepUpRequirement,
-} from '@/lib/auth/types';
+export type { Auth } from '@/lib/auth/types';

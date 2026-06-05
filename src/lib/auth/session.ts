@@ -2,12 +2,12 @@ import 'server-only';
 
 import { authConfig } from '@/lib/auth/config';
 import { createSessionTokenMaterial, hashIpAddress } from '@/lib/auth/tokens';
-import type { AuthSession, AuthSessionLevel, LoginRequestContext } from '@/lib/auth/types';
+import type { Auth } from '@/lib/auth/types';
 
 export interface SessionRecordInput {
   userId: string;
-  context?: LoginRequestContext;
-  level?: AuthSessionLevel;
+  context?: Auth.LoginContext;
+  level?: Auth.SessionLevel;
 }
 
 export interface SessionRecordDraft {
@@ -19,7 +19,7 @@ export interface SessionRecordDraft {
   expiresAt: Date;
   ipHash: string | null;
   userAgent: string | null;
-  level: AuthSessionLevel;
+  level: Auth.SessionLevel;
   recentAuthAt: Date;
 }
 
@@ -41,11 +41,11 @@ export function buildSessionRecord(input: SessionRecordInput): SessionRecordDraf
   };
 }
 
-export function isSessionExpired(session: AuthSession, now = new Date()): boolean {
+export function isSessionExpired(session: Auth.Session, now = new Date()): boolean {
   return session.expiresAt.getTime() <= now.getTime();
 }
 
-export function shouldRefreshSession(session: AuthSession, now = new Date()): boolean {
+export function shouldRefreshSession(session: Auth.Session, now = new Date()): boolean {
   const refreshThreshold = now.getTime() + authConfig.sessionFreshWindowSeconds * 1000;
 
   return session.expiresAt.getTime() <= refreshThreshold;
@@ -55,7 +55,7 @@ export function extendSessionExpiry(now = new Date()): Date {
   return new Date(now.getTime() + authConfig.sessionTtlSeconds * 1000);
 }
 
-export function hasRecentAuth(session: AuthSession, now = new Date()): boolean {
+export function hasRecentAuth(session: Auth.Session, now = new Date()): boolean {
   if (!session.recentAuthAt) {
     return false;
   }

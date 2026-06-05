@@ -1,38 +1,35 @@
 import 'server-only';
 
 import { NextResponse } from 'next/server';
+import type { ZodSchema } from 'zod';
 
-import type { LoginRequestContext } from '@/lib/auth/types';
+import type { Auth } from '@/lib/auth/types';
 
-export interface AuthRouteBody {
-  email?: string;
-  password?: string;
-  token?: string;
-}
-
-export function extractRequestContext(request: Request): LoginRequestContext {
+export function extractRequestContext(request: Request): Auth.LoginContext {
   return {
     ipAddress: getIpAddress(request),
     userAgent: request.headers.get('user-agent'),
   };
 }
 
-export async function parseAuthRouteBody(
-  request: Request
-): Promise<AuthRouteBody> {
-  const body = (await request.json()) as unknown;
-
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    throw new Error('Request body must be a JSON object.');
+export async function parseBodyWithSchema<T>(
+  request: Request,
+  schema: ZodSchema<T>
+): Promise<{ ok: true; data: T } | { ok: false; response: NextResponse }> {
+  let raw: unknown;
+  try {
+    raw = await request.json();
+  } catch {
+    return { ok: false, response: badRequest('Request body must be valid JSON.') };
   }
 
-  const bodyRecord = body as Record<string, unknown>;
+  const result = schema.safeParse(raw);
+  if (!result.success) {
+    const message = result.error.issues[0]?.message ?? 'Invalid request body.';
+    return { ok: false, response: badRequest(message) };
+  }
 
-  return {
-    email: asOptionalString(bodyRecord.email),
-    password: asOptionalString(bodyRecord.password),
-    token: asOptionalString(bodyRecord.token),
-  };
+  return { ok: true, data: result.data };
 }
 
 export function badRequest(message: string): NextResponse {
@@ -107,12 +104,4 @@ function getIpAddress(request: Request): string | null {
   }
 
   return request.headers.get('x-real-ip');
-}
-
-function asOptionalString(value: unknown): string | undefined {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  return value.trim();
 }

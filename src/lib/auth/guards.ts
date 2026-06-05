@@ -3,11 +3,11 @@ import 'server-only';
 import { redirect } from 'next/navigation';
 
 import { getAuthService } from '@/lib/auth/runtime';
-import type { AuthSession, AuthUser } from '@/lib/auth/types';
+import type { Auth } from '@/lib/auth/types';
 
 export async function requireAuthenticatedUser(
   redirectTo = '/'
-): Promise<AuthUser> {
+): Promise<Auth.User> {
   const authService = await getAuthService();
   const result = await authService.peekRequestSession();
 
@@ -21,7 +21,7 @@ export async function requireAuthenticatedUser(
 export async function requireVerifiedAuthenticatedUser(
   unauthenticatedRedirectTo = '/',
   unverifiedRedirectTo = '/verify-email'
-): Promise<AuthUser> {
+): Promise<Auth.User> {
   const authService = await getAuthService();
   const result = await authService.peekRequestSession();
 
@@ -38,7 +38,7 @@ export async function requireVerifiedAuthenticatedUser(
 
 export async function requireAuthenticatedSession(
   redirectTo = '/'
-): Promise<{ session: AuthSession; user: AuthUser }> {
+): Promise<{ session: Auth.Session; user: Auth.User }> {
   const authService = await getAuthService();
   const result = await authService.peekRequestSession();
 
@@ -52,7 +52,7 @@ export async function requireAuthenticatedSession(
   };
 }
 
-export async function redirectIfAuthenticated(redirectTo = '/app'): Promise<void> {
+export async function redirectIfAuthenticated(redirectTo = '/dashboard'): Promise<void> {
   const authService = await getAuthService();
   const result = await authService.peekRequestSession();
 

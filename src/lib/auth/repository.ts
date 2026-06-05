@@ -1,23 +1,17 @@
-import type {
-  AuthEvent,
-  AuthIssuedToken,
-  AuthSession,
-  AuthTokenKind,
-  AuthUser,
-} from '@/lib/auth/types';
+import type { Auth } from '@/lib/auth/types';
 
 export interface CreateAuthUserInput {
   emailNormalized: string;
   emailDisplay: string;
   passwordHash: string;
-  status: AuthUser['status'];
+  status: Auth.User['status'];
 }
 
 export interface UpdateAuthUserInput {
   emailVerifiedAt?: Date | null;
   lastLoginAt?: Date | null;
   passwordHash?: string;
-  status?: AuthUser['status'];
+  status?: Auth.User['status'];
   updatedAt?: Date;
 }
 
@@ -29,43 +23,43 @@ export interface CreateAuthSessionInput {
   expiresAt: Date;
   ipHash: string | null;
   userAgent: string | null;
-  level: AuthSession['level'];
+  level: Auth.Session['level'];
   recentAuthAt: Date | null;
 }
 
 export interface CreateIssuedTokenInput {
   userId: string;
   tokenHash: string;
-  kind: AuthTokenKind;
+  kind: Auth.TokenKind;
   createdAt: Date;
   expiresAt: Date;
 }
 
 export interface AuthRepository {
-  findUserById(userId: string): Promise<AuthUser | null>;
-  findUserByEmailNormalized(emailNormalized: string): Promise<AuthUser | null>;
-  createUser(input: CreateAuthUserInput): Promise<AuthUser>;
-  updateUser(userId: string, input: UpdateAuthUserInput): Promise<AuthUser>;
+  findUserById(userId: string): Promise<Auth.User | null>;
+  findUserByEmailNormalized(emailNormalized: string): Promise<Auth.User | null>;
+  createUser(input: CreateAuthUserInput): Promise<Auth.User>;
+  updateUser(userId: string, input: UpdateAuthUserInput): Promise<Auth.User>;
 
-  createSession(input: CreateAuthSessionInput): Promise<AuthSession>;
-  findSessionByTokenHash(tokenHash: string): Promise<AuthSession | null>;
+  createSession(input: CreateAuthSessionInput): Promise<Auth.Session>;
+  findSessionByTokenHash(tokenHash: string): Promise<Auth.Session | null>;
   updateSession(
     sessionId: string,
-    input: Partial<Pick<AuthSession, 'lastSeenAt' | 'expiresAt' | 'level' | 'recentAuthAt'>>
-  ): Promise<AuthSession>;
+    input: Partial<Pick<Auth.Session, 'lastSeenAt' | 'expiresAt' | 'level' | 'recentAuthAt'>>
+  ): Promise<Auth.Session>;
   deleteSession(sessionId: string): Promise<void>;
   deleteSessionsByUserId(userId: string): Promise<number>;
 
-  createIssuedToken(input: CreateIssuedTokenInput): Promise<AuthIssuedToken>;
+  createIssuedToken(input: CreateIssuedTokenInput): Promise<Auth.IssuedToken>;
   findIssuedTokenByHash(
-    kind: AuthTokenKind,
+    kind: Auth.TokenKind,
     tokenHash: string
-  ): Promise<AuthIssuedToken | null>;
+  ): Promise<Auth.IssuedToken | null>;
   markIssuedTokenUsed(tokenId: string, usedAt: Date): Promise<void>;
   deleteIssuedTokensByUserIdAndKind(
     userId: string,
-    kind: AuthTokenKind
+    kind: Auth.TokenKind
   ): Promise<number>;
 
-  createAuthEvent(event: AuthEvent): Promise<void>;
+  createAuthEvent(event: Auth.Event): Promise<void>;
 }
