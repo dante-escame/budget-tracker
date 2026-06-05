@@ -55,11 +55,13 @@ export function parseStatementDate(value: string): Date {
 /** Converts a reais decimal string (e.g. `-115.90`) to signed integer centavos. */
 export function reaisToCentavos(value: string): number {
   // Work in integer space to avoid float drift: split on the decimal point.
+  // Pad fraction to 3 digits so we can round on the sub-cent digit (e.g. "9" → 90¢, "999" → 100¢).
   const negative = value.startsWith('-');
   const unsigned = negative ? value.slice(1) : value;
   const [whole, fraction = ''] = unsigned.split('.');
-  const cents = `${fraction}00`.slice(0, 2);
-  const magnitude = Number(whole) * 100 + Number(cents);
+  const padded = `${fraction}00`.slice(0, 3);
+  const cents = Math.round(Number(padded) / 10);
+  const magnitude = Number(whole) * 100 + cents;
   return negative ? -magnitude : magnitude;
 }
 
@@ -76,8 +78,8 @@ export function inferPaymentType(description: string): Entry.PaymentType {
   if (text.includes('boleto')) return 'boleto';
   if (text.includes('pagamento de fatura')) return 'credit_card';
   if (text.includes('débito') || text.includes('debito')) return 'debit_card';
-  if (text.includes('ted')) return 'ted';
-  if (text.includes('doc')) return 'doc';
+  if (/\bted\b/.test(text)) return 'ted';
+  if (/\bdoc\b/.test(text)) return 'doc';
   return 'other';
 }
 
@@ -86,10 +88,15 @@ function toShortDescription(description: string): string {
   return `${description.slice(0, SHORT_DESCRIPTION_MAX - 1).trimEnd()}…`;
 }
 
-/** Pulls the trailing segment after the last ` - ` as a rough merchant/counterparty. */
+/**
+ * Extracts the merchant/counterparty from a description.
+ * Uses the 2nd segment (index 1) rather than the last: for Pix rows the format is
+ * "Action - PAYEE - CPF/CNPJ - BANK INFO", so the last segment is account noise.
+ * For 2-segment purchase rows ("Action - MERCHANT") index 1 is the last anyway.
+ */
 function extractMerchant(description: string): string | null {
   const segments = description.split(' - ');
   if (segments.length < 2) return null;
-  const last = segments[segments.length - 1]?.trim();
-  return last ? last : null;
+  const payee = segments[1]?.trim();
+  return payee ? payee : null;
 }
