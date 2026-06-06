@@ -24,6 +24,7 @@ export namespace Entry {
   export type Source = 'bank_statement' | 'credit_card_bill';
 
   export type Category =
+    | 'not_categorized'
     // Outcome
     | 'housing'
     | 'food'

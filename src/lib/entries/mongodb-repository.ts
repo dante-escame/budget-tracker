@@ -269,6 +269,26 @@ export async function createMongoEntryRepository(): Promise<EntryRepository> {
 
       return result?.net ?? 0;
     },
+
+    async groupOutcomesByCategory(userId, month) {
+      const { start, end } = monthRange(month);
+      const results = await collections.entries
+        .aggregate<{ _id: Entry.Category; total: number }>([
+          {
+            $match: {
+              user_id: parseObjectId(userId),
+              deleted_at: null,
+              flow: 'outcome',
+              competence_at: { $gte: start, $lt: end },
+            },
+          },
+          { $group: { _id: '$category', total: { $sum: '$value' } } },
+          { $sort: { total: -1 } },
+        ])
+        .toArray();
+
+      return results.map((r) => ({ category: r._id, total: r.total }));
+    },
   };
 }
 

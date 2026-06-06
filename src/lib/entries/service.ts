@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { matchCategory } from '@/lib/entries/categorize';
+import { categoryLabel } from '@/lib/entries/categories';
 import { parseStatementCsv } from '@/lib/entries/csv';
 import type { Entry } from '@/lib/entries/mongodb-documents';
 import type { EntryRepository, MonthFilter } from '@/lib/entries/repository';
@@ -192,6 +193,20 @@ export function createEntryService(repository: EntryRepository) {
       }
 
       return repository.updateEntryFields(userId, entryId, fields);
+    },
+
+    async getMonthlyOutcomesByCategory(
+      userId: string,
+      month: MonthFilter
+    ): Promise<{ category: Entry.Category; label: string; total: number }[]> {
+      const raw = await repository.groupOutcomesByCategory(userId, month);
+      return raw
+        .filter((r) => r.total > 0 && r.category !== 'not_categorized')
+        .map((r) => ({
+          category: r.category,
+          label: categoryLabel(r.category),
+          total: r.total,
+        }));
     },
 
     /**

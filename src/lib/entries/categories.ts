@@ -3,6 +3,7 @@ import type { Entry } from '@/lib/entries/mongodb-documents';
 // Human-readable labels for every category. Shared by the statement table and
 // the tagging-rules UI so display stays consistent in one place.
 export const CATEGORY_LABELS: Record<Entry.Category, string> = {
+  not_categorized: 'Not Categorized',
   // Outcome
   housing: 'Housing',
   food: 'Food & Groceries',
@@ -34,6 +35,7 @@ export const CATEGORY_LABELS: Record<Entry.Category, string> = {
 
 // Categories grouped by flow, in display order, for select inputs.
 export const OUTCOME_CATEGORIES: Entry.Category[] = [
+  'not_categorized',
   'housing',
   'food',
   'dining',
@@ -54,6 +56,7 @@ export const OUTCOME_CATEGORIES: Entry.Category[] = [
 ];
 
 export const INCOME_CATEGORIES: Entry.Category[] = [
+  'not_categorized',
   'salary',
   'freelance',
   'investment_return',

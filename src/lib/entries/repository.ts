@@ -89,4 +89,10 @@ export interface EntryRepository {
     startInclusive: Date,
     endExclusive: Date
   ): Promise<number>;
+
+  /** Outcome totals grouped by category for a given competence month, in centavos. Sorted by total descending. */
+  groupOutcomesByCategory(
+    userId: string,
+    month: MonthFilter
+  ): Promise<{ category: Entry.Category; total: number }[]>;
 }

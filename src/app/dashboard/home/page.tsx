@@ -8,6 +8,7 @@ import Typography from '@mui/material/Typography';
 import { requireVerifiedAuthenticatedUser } from '@/lib/auth/guards';
 import { getEntryService } from '@/lib/entries/runtime';
 import { getBaseDataService } from '@/lib/base-data/runtime';
+import OutcomesByCategoryChart from '@/components/dashboard/OutcomesByCategoryChart';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,16 +27,19 @@ export default async function HomePage() {
     year: now.getUTCFullYear(),
     month: now.getUTCMonth() + 1,
   };
-  const currentBalance = baseData
-    ? (
-        await entryService.computeMonthBalance(
-          user.id,
-          baseData.baseMonth,
-          baseData.baselineTotal,
-          currentMonth
-        )
-      ).endingBalance
-    : null;
+  const [currentBalance, outcomesByCategory] = await Promise.all([
+    baseData
+      ? entryService
+          .computeMonthBalance(
+            user.id,
+            baseData.baseMonth,
+            baseData.baselineTotal,
+            currentMonth
+          )
+          .then((b) => b.endingBalance)
+      : Promise.resolve(null),
+    entryService.getMonthlyOutcomesByCategory(user.id, currentMonth),
+  ]);
 
   return (
     <Container maxWidth="md" sx={{ py: { xs: 6, md: 8 } }}>
@@ -78,6 +82,15 @@ export default async function HomePage() {
                 </Typography>
               )}
             </Stack>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ border: '1px solid', borderColor: 'divider' }}>
+          <CardContent>
+            <OutcomesByCategoryChart
+              data={outcomesByCategory}
+              month={currentMonth}
+            />
           </CardContent>
         </Card>
 
