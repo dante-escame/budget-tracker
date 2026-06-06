@@ -3,10 +3,12 @@ import { NextResponse } from 'next/server';
 import { getAuthService } from '@/lib/auth/runtime';
 import { badRequest, unauthorized } from '@/lib/auth/http';
 import { getBaseDataService } from '@/lib/base-data/runtime';
-import { getEntryService } from '@/lib/entries/runtime';
-import { EmptyStatementError } from '@/lib/entries/service';
+import { getCreditCardService } from '@/lib/credit-cards/runtime';
+import { EmptyBillError } from '@/lib/credit-cards/service';
+import { importBillSchema, parseMonthParam } from '@/lib/credit-cards/schemas';
+import type { MonthFilter } from '@/lib/credit-cards/repository';
 
-// Reject oversized uploads early. Statement CSVs are tiny; 5 MB is generous.
+// Reject oversized uploads early. Fatura CSVs are tiny; 5 MB is generous.
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 export async function POST(request: Request) {
@@ -46,27 +48,45 @@ export async function POST(request: Request) {
     return badRequest('Only CSV files are supported.');
   }
 
-  const text = await file.text();
+  const fields = importBillSchema.safeParse({
+    cardLabel: formData.get('cardLabel'),
+    billMonth: formData.get('billMonth'),
+  });
+  if (!fields.success) {
+    return badRequest(fields.error.issues[0]?.message ?? 'Invalid import fields.');
+  }
 
-  // Rows before the user's base month are rejected so they don't double-count
-  // against the baseline. No base data configured → no restriction.
+  const text = await file.text();
+  const billMonth = parseMonthParam(fields.data.billMonth);
+
+  // A bill belongs to a single month, so reject the whole import when it predates
+  // the user's base month. No base data configured → no restriction.
   const baseDataService = await getBaseDataService();
   const baseData = await baseDataService.getBaseData(user.id);
-  const baseMonthStart = baseData
-    ? new Date(Date.UTC(baseData.baseMonth.year, baseData.baseMonth.month - 1, 1))
-    : undefined;
+  if (baseData && isBeforeMonth(billMonth, baseData.baseMonth)) {
+    return badRequest('This bill is before your base month and cannot be imported.');
+  }
 
-  const entryService = await getEntryService();
+  const service = await getCreditCardService();
   try {
-    const summary = await entryService.importStatement(user.id, text, {
-      baseMonthStart,
+    const summary = await service.importBill(user.id, {
+      cardLabel: fields.data.cardLabel,
+      billMonth,
+      csvText: text,
     });
     return NextResponse.json(summary);
   } catch (error) {
-    if (error instanceof EmptyStatementError) {
+    if (error instanceof EmptyBillError) {
       return badRequest(error.message);
     }
-
     throw error;
   }
+}
+
+// True when `month` falls strictly before `reference` (year-then-month order).
+function isBeforeMonth(month: MonthFilter, reference: MonthFilter): boolean {
+  return (
+    month.year < reference.year ||
+    (month.year === reference.year && month.month < reference.month)
+  );
 }

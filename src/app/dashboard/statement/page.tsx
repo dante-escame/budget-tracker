@@ -1,5 +1,6 @@
 import { requireVerifiedAuthenticatedUser } from '@/lib/auth/guards';
 import { getEntryService } from '@/lib/entries/runtime';
+import { getBaseDataService } from '@/lib/base-data/runtime';
 import type { Entry } from '@/lib/entries';
 import { StatementView } from '@/components/statement/StatementView';
 
@@ -10,22 +11,42 @@ const MONTH_PARAM_PATTERN = /^(\d{4})-(\d{2})$/;
 export default async function StatementPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; entry?: string }>;
 }) {
   const user = await requireVerifiedAuthenticatedUser();
-  const entryService = await getEntryService();
+  const [entryService, baseDataService] = await Promise.all([
+    getEntryService(),
+    getBaseDataService(),
+  ]);
 
   const months = await entryService.listAvailableMonths(user.id);
-  const { month } = await searchParams;
+  const { month, entry } = await searchParams;
   const selectedMonth = resolveSelectedMonth(month, months);
 
-  const entries = await entryService.listMonthlyStatement(user.id, selectedMonth);
+  const [entries, baseData] = await Promise.all([
+    entryService.listMonthlyStatement(user.id, selectedMonth),
+    baseDataService.getBaseData(user.id),
+  ]);
+
+  // With base data set, show the running balance (baseline + accumulated net).
+  const balance = baseData
+    ? await entryService.computeMonthBalance(
+        user.id,
+        baseData.baseMonth,
+        baseData.baselineTotal,
+        selectedMonth
+      )
+    : null;
 
   return (
     <StatementView
       months={months}
       selectedMonth={selectedMonth}
       entries={entries}
+      highlightEntryId={entry ?? null}
+      baseData={baseData}
+      startingBalance={balance?.startingBalance ?? null}
+      endingBalance={balance?.endingBalance ?? null}
     />
   );
 }

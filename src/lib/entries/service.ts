@@ -22,7 +22,8 @@ export function createEntryService(repository: EntryRepository) {
      */
     async importStatement(
       userId: string,
-      csvText: string
+      csvText: string,
+      options: { baseMonthStart?: Date } = {}
     ): Promise<Entry.ImportSummary> {
       const rows = parseStatementCsv(csvText);
 
@@ -43,7 +44,20 @@ export function createEntryService(repository: EntryRepository) {
           continue;
         }
 
-        drafts.push(statementRowToDraft(parsed.data));
+        const draft = statementRowToDraft(parsed.data);
+
+        // Reject rows that predate the user's base month: the baseline total
+        // already accounts for everything before it, so importing earlier rows
+        // would double-count against the running balance.
+        if (options.baseMonthStart && draft.competenceAt < options.baseMonthStart) {
+          errors.push({
+            line: row.line,
+            message: 'Before your base month — not imported.',
+          });
+          continue;
+        }
+
+        drafts.push(draft);
       }
 
       // Apply the user's tagging rules so imported rows land in real categories
@@ -145,5 +159,80 @@ export function createEntryService(repository: EntryRepository) {
       const updated = await repository.bulkSetCategories(userId, updates);
       return { total: entries.length, updated };
     },
+
+    /**
+     * Updates a single entry's description and/or category. When the description
+     * changes and no explicit category was given, the user's tagging rules are
+     * re-run against the new text and a matching category is auto-applied (an
+     * explicit category in the same edit always wins). Returns the updated
+     * record, or null when the entry doesn't exist for this user.
+     */
+    async updateEntry(
+      userId: string,
+      entryId: string,
+      input: { description?: string; category?: Entry.Category }
+    ): Promise<Entry.Record | null> {
+      const fields = { ...input };
+
+      if (input.description !== undefined && input.category === undefined) {
+        const [existing, rules] = await Promise.all([
+          repository.getEntryById(userId, entryId),
+          repository.listTaggingRules(userId),
+        ]);
+
+        if (existing) {
+          const matched = matchCategory(
+            input.description,
+            existing.merchant,
+            existing.flow,
+            rules
+          );
+          if (matched) fields.category = matched;
+        }
+      }
+
+      return repository.updateEntryFields(userId, entryId, fields);
+    },
+
+    /**
+     * Running balance for a month, given the user's base month and baseline total.
+     * `startingBalance` is the balance entering the month; `endingBalance` is the
+     * balance at its close. Both are the baseline plus the accumulated signed net
+     * from the base month, so they stay correct without importing earlier history.
+     */
+    async computeMonthBalance(
+      userId: string,
+      baseMonth: MonthFilter,
+      baselineTotal: number,
+      selectedMonth: MonthFilter
+    ): Promise<{ startingBalance: number; endingBalance: number }> {
+      const baseStart = monthStart(baseMonth);
+      const selectedStart = monthStart(selectedMonth);
+      const selectedEnd = monthStart(nextMonth(selectedMonth));
+
+      // Clamp to the base month: ranges before it are empty and contribute 0.
+      const startEnd = selectedStart < baseStart ? baseStart : selectedStart;
+      const endEnd = selectedEnd < baseStart ? baseStart : selectedEnd;
+
+      const [priorNet, throughNet] = await Promise.all([
+        repository.sumNetInRange(userId, baseStart, startEnd),
+        repository.sumNetInRange(userId, baseStart, endEnd),
+      ]);
+
+      return {
+        startingBalance: baselineTotal + priorNet,
+        endingBalance: baselineTotal + throughNet,
+      };
+    },
   };
+}
+
+function monthStart({ year, month }: MonthFilter): Date {
+  return new Date(Date.UTC(year, month - 1, 1));
+}
+
+function nextMonth({ year, month }: MonthFilter): MonthFilter {
+  return month === 12
+    ? { year: year + 1, month: 1 }
+    : { year, month: month + 1 };
 }

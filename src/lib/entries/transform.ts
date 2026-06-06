@@ -83,7 +83,7 @@ export function inferPaymentType(description: string): Entry.PaymentType {
   return 'other';
 }
 
-function toShortDescription(description: string): string {
+export function toShortDescription(description: string): string {
   if (description.length <= SHORT_DESCRIPTION_MAX) return description;
   return `${description.slice(0, SHORT_DESCRIPTION_MAX - 1).trimEnd()}…`;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { statementRowSchema } from '@/lib/entries/schemas';
+import { entryUpdateSchema, statementRowSchema } from '@/lib/entries/schemas';
 
 const validRow = {
   data: '01/05/2026',
@@ -41,5 +41,40 @@ describe('statementRowSchema', () => {
     const result = statementRowSchema.safeParse({ ...validRow, descricao: '' });
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.message).toBe('Description is required.');
+  });
+});
+
+describe('entryUpdateSchema', () => {
+  it('accepts a description-only update (trimmed)', () => {
+    const result = entryUpdateSchema.safeParse({ description: '  Groceries  ' });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.description).toBe('Groceries');
+  });
+
+  it('accepts a category-only update', () => {
+    expect(entryUpdateSchema.safeParse({ category: 'dining' }).success).toBe(true);
+  });
+
+  it('accepts both fields together', () => {
+    expect(
+      entryUpdateSchema.safeParse({ description: 'Uber', category: 'transportation' })
+        .success
+    ).toBe(true);
+  });
+
+  it('rejects an empty patch', () => {
+    const result = entryUpdateSchema.safeParse({});
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe(
+      'Provide a description or category to update.'
+    );
+  });
+
+  it('rejects an unknown category', () => {
+    expect(entryUpdateSchema.safeParse({ category: 'not_a_category' }).success).toBe(false);
+  });
+
+  it('rejects a blank description', () => {
+    expect(entryUpdateSchema.safeParse({ description: '   ' }).success).toBe(false);
   });
 });

@@ -19,6 +19,7 @@ export const CATEGORY_LABELS: Record<Entry.Category, string> = {
   taxes: 'Taxes',
   pets: 'Pets',
   gifts: 'Gifts',
+  investment: 'Investment',
   other_outcome: 'Other Outcome',
   // Income
   salary: 'Salary',
@@ -48,6 +49,7 @@ export const OUTCOME_CATEGORIES: Entry.Category[] = [
   'taxes',
   'pets',
   'gifts',
+  'investment',
   'other_outcome',
 ];
 
