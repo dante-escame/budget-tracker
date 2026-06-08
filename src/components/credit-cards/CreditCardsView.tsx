@@ -278,6 +278,7 @@ export function CreditCardsView({
 
       {bill && (
         <LinkPaymentDialog
+          key={bill.id}
           open={linkOpen}
           bill={bill}
           onClose={() => setLinkOpen(false)}

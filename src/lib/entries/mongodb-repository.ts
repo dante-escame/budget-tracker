@@ -248,6 +248,7 @@ export async function createMongoEntryRepository(): Promise<EntryRepository> {
               user_id: parseObjectId(userId),
               deleted_at: null,
               competence_at: { $gte: startInclusive, $lt: endExclusive },
+              source: { $ne: 'credit_card_bill' },
             },
           },
           {
