@@ -18,7 +18,13 @@ export namespace Entry {
 
   export type RecurrenceRule = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
+  // Where an entry came from. Bank-statement imports (and manual entries) leave
+  // this undefined; credit-card bill imports tag rows as 'credit_card_bill' so
+  // they can be grouped under a bill and shown on the Credit Cards page.
+  export type Source = 'bank_statement' | 'credit_card_bill';
+
   export type Category =
+    | 'not_categorized'
     // Outcome
     | 'housing'
     | 'food'
@@ -35,6 +41,7 @@ export namespace Entry {
     | 'taxes'
     | 'pets'
     | 'gifts'
+    | 'investment'
     | 'other_outcome'
     // Income
     | 'salary'
@@ -69,6 +76,9 @@ export namespace Entry {
     user_id: ObjectId;
 
     external_id?: string; // source id from an imported statement (idempotency key)
+
+    source?: Source;      // origin of the entry; undefined = bank_statement
+    bill_id?: ObjectId;   // credit-card bill this line item belongs to, if any
 
     description: string;
     short_description: string;
@@ -109,6 +119,7 @@ export namespace Entry {
     occurredAt: string; // ISO date
     status: Status;
     merchant: string | null;
+    source?: Source;
   }
 
   // A month that has at least one entry, used by the month filter dropdown.

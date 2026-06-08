@@ -9,7 +9,7 @@ import type {
   EntryRepository,
   MonthFilter,
 } from '@/lib/entries/repository';
-import type { EntryDraft } from '@/lib/entries/transform';
+import { toShortDescription, type EntryDraft } from '@/lib/entries/transform';
 
 export async function createMongoEntryRepository(): Promise<EntryRepository> {
   const collections = await getEntryCollections();
@@ -56,6 +56,18 @@ export async function createMongoEntryRepository(): Promise<EntryRepository> {
         .toArray();
 
       return documents.map(mapEntryRecord);
+    },
+
+    async getEntryById(userId, entryId): Promise<Entry.Record | null> {
+      if (!ObjectId.isValid(entryId)) return null;
+
+      const document = await collections.entries.findOne({
+        _id: new ObjectId(entryId),
+        user_id: parseObjectId(userId),
+        deleted_at: null,
+      });
+
+      return document ? mapEntryRecord(document) : null;
     },
 
     async listAvailableMonths(userId): Promise<Entry.MonthOption[]> {
@@ -206,6 +218,78 @@ export async function createMongoEntryRepository(): Promise<EntryRepository> {
 
       return result.modifiedCount ?? 0;
     },
+
+    async updateEntryFields(userId, entryId, fields): Promise<Entry.Record | null> {
+      if (!ObjectId.isValid(entryId)) return null;
+
+      const update: Partial<Entry.Document> = { updated_at: new Date() };
+      if (fields.description !== undefined) {
+        update.description = fields.description;
+        update.short_description = toShortDescription(fields.description);
+      }
+      if (fields.category !== undefined) {
+        update.category = fields.category;
+      }
+
+      const document = await collections.entries.findOneAndUpdate(
+        { _id: new ObjectId(entryId), user_id: parseObjectId(userId), deleted_at: null },
+        { $set: update },
+        { returnDocument: 'after' }
+      );
+
+      return document ? mapEntryRecord(document) : null;
+    },
+
+    async sumNetInRange(userId, startInclusive, endExclusive): Promise<number> {
+      const [result] = await collections.entries
+        .aggregate<{ net: number }>([
+          {
+            $match: {
+              user_id: parseObjectId(userId),
+              deleted_at: null,
+              competence_at: { $gte: startInclusive, $lt: endExclusive },
+              source: { $ne: 'credit_card_bill' },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              net: {
+                $sum: {
+                  $cond: [
+                    { $eq: ['$flow', 'income'] },
+                    '$value',
+                    { $multiply: ['$value', -1] },
+                  ],
+                },
+              },
+            },
+          },
+        ])
+        .toArray();
+
+      return result?.net ?? 0;
+    },
+
+    async groupOutcomesByCategory(userId, month) {
+      const { start, end } = monthRange(month);
+      const results = await collections.entries
+        .aggregate<{ _id: Entry.Category; total: number }>([
+          {
+            $match: {
+              user_id: parseObjectId(userId),
+              deleted_at: null,
+              flow: 'outcome',
+              competence_at: { $gte: start, $lt: end },
+            },
+          },
+          { $group: { _id: '$category', total: { $sum: '$value' } } },
+          { $sort: { total: -1 } },
+        ])
+        .toArray();
+
+      return results.map((r) => ({ category: r._id, total: r.total }));
+    },
   };
 }
 
@@ -275,6 +359,7 @@ function mapEntryRecord(document: WithId<Entry.Document>): Entry.Record {
     occurredAt: document.occurred_at.toISOString(),
     status: document.status,
     merchant: document.merchant ?? null,
+    source: document.source ?? 'bank_statement',
   };
 }
 

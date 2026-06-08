@@ -28,6 +28,9 @@ export interface EntryRepository {
     month: MonthFilter
   ): Promise<Entry.Record[]>;
 
+  /** A single non-deleted entry scoped to the user, or null when not found. */
+  getEntryById(userId: string, entryId: string): Promise<Entry.Record | null>;
+
   /** Distinct months (by competence) that have at least one entry, newest first. */
   listAvailableMonths(userId: string): Promise<Entry.MonthOption[]>;
 
@@ -64,4 +67,32 @@ export interface EntryRepository {
     userId: string,
     updates: { id: string; category: Entry.Category }[]
   ): Promise<number>;
+
+  /**
+   * Updates a single entry's editable fields (description and/or category) scoped
+   * to the user. Recomputes the short description when the description changes.
+   * Returns the updated record, or null when the entry doesn't exist.
+   */
+  updateEntryFields(
+    userId: string,
+    entryId: string,
+    fields: { description?: string; category?: Entry.Category }
+  ): Promise<Entry.Record | null>;
+
+  /**
+   * Signed net (income minus outcome) in centavos across a user's non-deleted
+   * entries whose competence month falls in `[startInclusive, endExclusive)`.
+   * Returns 0 when the range holds no entries.
+   */
+  sumNetInRange(
+    userId: string,
+    startInclusive: Date,
+    endExclusive: Date
+  ): Promise<number>;
+
+  /** Outcome totals grouped by category for a given competence month, in centavos. Sorted by total descending. */
+  groupOutcomesByCategory(
+    userId: string,
+    month: MonthFilter
+  ): Promise<{ category: Entry.Category; total: number }[]>;
 }

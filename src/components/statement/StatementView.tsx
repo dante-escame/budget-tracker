@@ -1,17 +1,19 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
 import Container from '@mui/material/Container';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
+import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Snackbar from '@mui/material/Snackbar';
@@ -27,11 +29,17 @@ import TableSortLabel from '@mui/material/TableSortLabel';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import FileUploadRoundedIcon from '@mui/icons-material/FileUploadRounded';
+import SavingsRoundedIcon from '@mui/icons-material/SavingsRounded';
 
-import { CATEGORY_LABELS } from '@/lib/entries/categories';
+import { ALL_CATEGORIES, CATEGORY_LABELS } from '@/lib/entries/categories';
 import type { Entry } from '@/lib/entries';
+import type { BaseData } from '@/lib/base-data';
 import { ImportStatementDialog } from '@/components/statement/ImportStatementDialog';
+import { BaseDataDialog } from '@/components/statement/BaseDataDialog';
 
 type SortKey = 'occurredAt' | 'shortDescription' | 'category' | 'type' | 'value';
 type SortDirection = 'asc' | 'desc';
@@ -56,20 +64,42 @@ export function StatementView({
   months,
   selectedMonth,
   entries,
+  highlightEntryId = null,
+  baseData = null,
+  startingBalance = null,
+  endingBalance = null,
 }: {
   months: Entry.MonthOption[];
   selectedMonth: Entry.MonthOption;
   entries: Entry.Record[];
+  highlightEntryId?: string | null;
+  baseData?: BaseData.Record | null;
+  startingBalance?: number | null;
+  endingBalance?: number | null;
 }) {
   const router = useRouter();
+  // Local copy of the server entries so an inline edit reflects immediately
+  // without a full reload. Re-synced during render whenever the prop changes
+  // (e.g. month switch) — the documented React pattern, avoiding a sync effect.
+  const [rows, setRows] = useState<Entry.Record[]>(entries);
+  const [syncedEntries, setSyncedEntries] = useState(entries);
+  if (syncedEntries !== entries) {
+    setSyncedEntries(entries);
+    setRows(entries);
+  }
+
   const [importOpen, setImportOpen] = useState(false);
+  const [baseDataOpen, setBaseDataOpen] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
   const [applyPending, setApplyPending] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('occurredAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
+  // Start on the page holding the linked entry when arriving via an "origin" link.
+  const [page, setPage] = useState(() =>
+    initialPage(entries, highlightEntryId, rowsPerPage)
+  );
 
   const monthOptions = useMemo(
     () => buildMonthOptions(months, selectedMonth),
@@ -78,14 +108,23 @@ export function StatementView({
   const selectedValue = toMonthValue(selectedMonth);
 
   const sortedEntries = useMemo(
-    () => sortEntries(entries, sortKey, sortDirection),
-    [entries, sortKey, sortDirection]
+    () => sortEntries(rows, sortKey, sortDirection),
+    [rows, sortKey, sortDirection]
   );
 
   const pagedEntries = useMemo(
     () => sortedEntries.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
     [sortedEntries, page, rowsPerPage]
   );
+
+  const highlightRowRef = useRef<HTMLTableRowElement>(null);
+
+  // Scroll the highlighted row into view once it is on the visible page.
+  useEffect(() => {
+    if (highlightEntryId && highlightRowRef.current) {
+      highlightRowRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }, [highlightEntryId, pagedEntries]);
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
@@ -100,6 +139,11 @@ export function StatementView({
   function handleMonthChange(value: string) {
     setPage(0);
     router.push(`/dashboard/statement?month=${value}`);
+  }
+
+  function handleRowSaved(updated: Entry.Record) {
+    setRows((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
+    setToast('Transaction updated.');
   }
 
   async function handleApplyRules() {
@@ -175,6 +219,14 @@ export function StatementView({
 
             <Button
               variant="outlined"
+              startIcon={<SavingsRoundedIcon />}
+              onClick={() => setBaseDataOpen(true)}
+            >
+              Base data
+            </Button>
+
+            <Button
+              variant="outlined"
               startIcon={<AutoFixHighRoundedIcon />}
               onClick={() => setApplyOpen(true)}
               disabled={entries.length === 0}
@@ -192,7 +244,11 @@ export function StatementView({
           </Stack>
         </Stack>
 
-        <SummaryBar entries={entries} />
+        <SummaryBar
+          entries={rows}
+          startingBalance={startingBalance}
+          endingBalance={endingBalance}
+        />
 
         <Paper variant="outlined" sx={{ borderColor: 'divider', overflow: 'hidden' }}>
           <TableContainer>
@@ -215,12 +271,15 @@ export function StatementView({
                       </TableSortLabel>
                     </TableCell>
                   ))}
+                  <TableCell align="right" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Actions
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {pagedEntries.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={COLUMNS.length} sx={{ border: 0 }}>
+                    <TableCell colSpan={COLUMNS.length + 1} sx={{ border: 0 }}>
                       <Box sx={{ py: 6, textAlign: 'center' }}>
                         <Typography color="text.secondary">
                           No entries for this month yet. Import a bank statement to get
@@ -230,9 +289,19 @@ export function StatementView({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  pagedEntries.map((entry) => (
-                    <EntryRow key={entry.id} entry={entry} />
-                  ))
+                  pagedEntries.map((entry) => {
+                    const highlighted = entry.id === highlightEntryId;
+                    return (
+                      <EntryRow
+                        key={entry.id}
+                        entry={entry}
+                        highlighted={highlighted}
+                        rowRef={highlighted ? highlightRowRef : undefined}
+                        onSaved={handleRowSaved}
+                        onError={setToast}
+                      />
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -257,6 +326,17 @@ export function StatementView({
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onImported={() => router.refresh()}
+      />
+
+      <BaseDataDialog
+        open={baseDataOpen}
+        baseData={baseData}
+        onClose={() => setBaseDataOpen(false)}
+        onSaved={() => {
+          setBaseDataOpen(false);
+          setToast('Base data saved.');
+          router.refresh();
+        }}
       />
 
       <Dialog open={applyOpen} onClose={() => !applyPending && setApplyOpen(false)}>
@@ -301,28 +381,146 @@ export function StatementView({
   );
 }
 
-function EntryRow({ entry }: { entry: Entry.Record }) {
+function EntryRow({
+  entry,
+  highlighted = false,
+  rowRef,
+  onSaved,
+  onError,
+}: {
+  entry: Entry.Record;
+  highlighted?: boolean;
+  rowRef?: React.Ref<HTMLTableRowElement>;
+  onSaved: (updated: Entry.Record) => void;
+  onError: (message: string) => void;
+}) {
   const isIncome = entry.flow === 'income';
+  const isCard = entry.source === 'credit_card_bill';
+
+  const [editing, setEditing] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [description, setDescription] = useState(entry.description);
+  const [category, setCategory] = useState<Entry.Category>(entry.category);
+
+  function startEdit() {
+    setDescription(entry.description);
+    setCategory(entry.category);
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    if (pending) return;
+    setEditing(false);
+  }
+
+  async function handleSave() {
+    const trimmed = description.trim();
+    if (trimmed.length === 0) {
+      onError('Description is required.');
+      return;
+    }
+
+    const body: { description?: string; category?: Entry.Category } = {};
+    if (trimmed !== entry.description) body.description = trimmed;
+    if (category !== entry.category) body.category = category;
+
+    // Nothing changed — just leave edit mode without a round trip.
+    if (body.description === undefined && body.category === undefined) {
+      setEditing(false);
+      return;
+    }
+
+    setPending(true);
+    try {
+      const response = await fetch(`/api/entries/${entry.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        onError(data?.error ?? 'Could not update the transaction.');
+        return;
+      }
+
+      const updated: Entry.Record = await response.json();
+      setEditing(false);
+      onSaved(updated);
+    } catch {
+      onError('Network error. Please try again.');
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
-    <TableRow hover>
+    <TableRow
+      hover
+      ref={rowRef}
+      sx={highlighted ? { bgcolor: 'primary.light' } : undefined}
+    >
       <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(entry.occurredAt)}</TableCell>
       <TableCell>
-        <Typography variant="body2" color="text.primary">
-          {entry.shortDescription}
-        </Typography>
-        {entry.merchant && (
-          <Typography variant="caption" color="text.secondary">
-            {entry.merchant}
-          </Typography>
+        {editing ? (
+          <TextField
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            size="small"
+            fullWidth
+            multiline
+            maxRows={3}
+            autoFocus
+            disabled={pending}
+            aria-label="Description"
+          />
+        ) : (
+          <>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+              <Typography variant="body2" color="text.primary">
+                {entry.shortDescription}
+              </Typography>
+              {isCard && (
+                <Chip
+                  label="Card"
+                  size="small"
+                  variant="outlined"
+                  sx={{ height: 18, fontSize: 10 }}
+                />
+              )}
+            </Stack>
+            {entry.merchant && (
+              <Typography variant="caption" color="text.secondary">
+                {entry.merchant}
+              </Typography>
+            )}
+          </>
         )}
       </TableCell>
       <TableCell>
-        <Chip
-          label={CATEGORY_LABELS[entry.category]}
-          size="small"
-          sx={{ bgcolor: 'secondary.light', color: 'secondary.contrastText' }}
-        />
+        {editing ? (
+          <TextField
+            select
+            value={category}
+            onChange={(event) => setCategory(event.target.value as Entry.Category)}
+            size="small"
+            disabled={pending}
+            sx={{ minWidth: 160 }}
+            aria-label="Category"
+          >
+            {ALL_CATEGORIES.map((option) => (
+              <MenuItem key={option} value={option}>
+                {CATEGORY_LABELS[option]}
+              </MenuItem>
+            ))}
+          </TextField>
+        ) : (
+          <Chip
+            label={CATEGORY_LABELS[entry.category]}
+            size="small"
+            sx={{ bgcolor: 'secondary.light', color: 'secondary.contrastText' }}
+          />
+        )}
       </TableCell>
       <TableCell>
         <Typography variant="body2" color="text.secondary">
@@ -342,11 +540,50 @@ function EntryRow({ entry }: { entry: Entry.Record }) {
           {formatSignedAmount(entry.value, entry.flow, entry.currency)}
         </Typography>
       </TableCell>
+      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+        {editing ? (
+          <>
+            <IconButton
+              size="small"
+              color="primary"
+              aria-label="Save changes"
+              onClick={handleSave}
+              disabled={pending}
+            >
+              {pending ? (
+                <CircularProgress size={18} color="inherit" />
+              ) : (
+                <CheckRoundedIcon fontSize="small" />
+              )}
+            </IconButton>
+            <IconButton
+              size="small"
+              aria-label="Cancel editing"
+              onClick={cancelEdit}
+              disabled={pending}
+            >
+              <CloseRoundedIcon fontSize="small" />
+            </IconButton>
+          </>
+        ) : (
+          <IconButton size="small" aria-label="Edit transaction" onClick={startEdit}>
+            <EditRoundedIcon fontSize="small" />
+          </IconButton>
+        )}
+      </TableCell>
     </TableRow>
   );
 }
 
-function SummaryBar({ entries }: { entries: Entry.Record[] }) {
+function SummaryBar({
+  entries,
+  startingBalance,
+  endingBalance,
+}: {
+  entries: Entry.Record[];
+  startingBalance: number | null;
+  endingBalance: number | null;
+}) {
   const { income, outcome } = useMemo(() => {
     let income = 0;
     let outcome = 0;
@@ -358,16 +595,35 @@ function SummaryBar({ entries }: { entries: Entry.Record[] }) {
   }, [entries]);
 
   const net = income - outcome;
+  const hasBalance = startingBalance !== null && endingBalance !== null;
 
   return (
-    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-      <SummaryCard label="Income" amount={income} tone="success.dark" />
-      <SummaryCard label="Expenses" amount={outcome} tone="error.main" />
-      <SummaryCard
-        label="Net"
-        amount={net}
-        tone={net >= 0 ? 'success.dark' : 'error.main'}
-      />
+    <Stack spacing={2}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+        <SummaryCard label="Income" amount={income} tone="success.dark" />
+        <SummaryCard label="Expenses" amount={outcome} tone="error.main" />
+        <SummaryCard
+          label="Net"
+          amount={net}
+          tone={net >= 0 ? 'success.dark' : 'error.main'}
+        />
+      </Stack>
+      {hasBalance && (
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <SummaryCard
+            label="Starting balance"
+            amount={startingBalance}
+            tone={startingBalance >= 0 ? 'success.dark' : 'error.main'}
+            signed={false}
+          />
+          <SummaryCard
+            label="Ending balance"
+            amount={endingBalance}
+            tone={endingBalance >= 0 ? 'success.dark' : 'error.main'}
+            signed={false}
+          />
+        </Stack>
+      )}
     </Stack>
   );
 }
@@ -376,10 +632,13 @@ function SummaryCard({
   label,
   amount,
   tone,
+  signed = true,
 }: {
   label: string;
   amount: number;
   tone: string;
+  // Income/expense/net always show a +/- sign; balances read as plain totals.
+  signed?: boolean;
 }) {
   return (
     <Paper
@@ -397,10 +656,25 @@ function SummaryCard({
           color: tone,
         }}
       >
-        {formatCurrency(amount / 100, 'BRL')}
+        {signed
+          ? formatCurrency(amount / 100, 'BRL')
+          : formatBalance(amount / 100, 'BRL')}
       </Typography>
     </Paper>
   );
+}
+
+// The page index (0-based) that holds the highlighted entry under the default
+// sort, so an "origin" link lands directly on it. Defaults to the first page.
+function initialPage(
+  entries: Entry.Record[],
+  highlightEntryId: string | null,
+  rowsPerPage: number
+): number {
+  if (!highlightEntryId) return 0;
+  const ordered = sortEntries(entries, 'occurredAt', 'desc');
+  const index = ordered.findIndex((e) => e.id === highlightEntryId);
+  return index >= 0 ? Math.floor(index / rowsPerPage) : 0;
 }
 
 function sortEntries(
@@ -471,6 +745,14 @@ function formatCurrency(amount: number, currency: string): string {
     style: 'currency',
     currency,
     signDisplay: 'always',
+  }).format(amount);
+}
+
+// A running balance: plain currency, with a minus only when actually negative.
+function formatBalance(amount: number, currency: string): string {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency,
   }).format(amount);
 }
 

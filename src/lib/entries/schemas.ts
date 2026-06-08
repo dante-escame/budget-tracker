@@ -45,6 +45,20 @@ export const taggingRuleInputSchema = z.object({
 
 export type TaggingRuleInputFields = z.infer<typeof taggingRuleInputSchema>;
 
+// Body for editing a single entry: any subset of the editable fields. At least
+// one must be present so an empty patch is rejected rather than silently no-op.
+export const entryUpdateSchema = z
+  .object({
+    description: z.string().trim().min(1, 'Description is required.').max(500).optional(),
+    category: categorySchema.optional(),
+  })
+  .refine(
+    (value) => value.description !== undefined || value.category !== undefined,
+    'Provide a description or category to update.'
+  );
+
+export type EntryUpdateFields = z.infer<typeof entryUpdateSchema>;
+
 // Body for the "Apply All Rules" action: the competence month to target.
 export const applyRulesSchema = z.object({
   month: z
@@ -60,7 +74,7 @@ export function parseMonthParam(value: string): { year: number; month: number } 
   return { year: Number(match[1]), month: Number(match[2]) };
 }
 
-function isRealMonth(value: string): boolean {
+export function isRealMonth(value: string): boolean {
   const match = MONTH_PATTERN.exec(value);
   if (!match) return false;
   const month = Number(match[2]);
