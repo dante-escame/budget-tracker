@@ -4,7 +4,11 @@ import { matchCategory } from '@/lib/entries/categorize';
 import { categoryLabel } from '@/lib/entries/categories';
 import { parseStatementCsv } from '@/lib/entries/csv';
 import type { Entry } from '@/lib/entries/mongodb-documents';
-import type { EntryRepository, MonthFilter } from '@/lib/entries/repository';
+import type {
+  EntryRepository,
+  ManualEntryInput,
+  MonthFilter,
+} from '@/lib/entries/repository';
 import { statementRowSchema } from '@/lib/entries/schemas';
 import { statementRowToDraft, type EntryDraft } from '@/lib/entries/transform';
 
@@ -87,6 +91,24 @@ export function createEntryService(repository: EntryRepository) {
       month: MonthFilter
     ): Promise<Entry.Record[]> {
       return repository.listEntriesByMonth(userId, month);
+    },
+
+    /** Creates a single manually-authored entry (e.g. an investment outflow). */
+    createEntry(
+      userId: string,
+      input: ManualEntryInput
+    ): Promise<{ id: string }> {
+      return repository.createEntry(userId, input);
+    },
+
+    /** Fetches a single entry scoped to the user, or null when missing. */
+    getEntry(userId: string, id: string): Promise<Entry.Record | null> {
+      return repository.getEntryById(userId, id);
+    },
+
+    /** Soft-deletes a single entry scoped to the user. */
+    softDeleteEntry(userId: string, id: string): Promise<boolean> {
+      return repository.softDeleteEntry(userId, id);
     },
 
     listAvailableMonths(userId: string): Promise<Entry.MonthOption[]> {
