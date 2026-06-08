@@ -14,6 +14,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Snackbar from '@mui/material/Snackbar';
@@ -37,6 +38,7 @@ import FileUploadRoundedIcon from '@mui/icons-material/FileUploadRounded';
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import PushPinRoundedIcon from '@mui/icons-material/PushPinRounded';
 import SavingsRoundedIcon from '@mui/icons-material/SavingsRounded';
+import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 
 import { ALL_CATEGORIES, CATEGORY_LABELS } from '@/lib/entries/categories';
 import type { Entry } from '@/lib/entries';
@@ -103,6 +105,7 @@ export function StatementView({
   const [sortKey, setSortKey] = useState<SortKey>('occurredAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [search, setSearch] = useState('');
   // Start on the page holding the linked entry when arriving via an "origin" link.
   const [page, setPage] = useState(() =>
     initialPage(entries, highlightEntryId, rowsPerPage)
@@ -119,9 +122,20 @@ export function StatementView({
     [rows, sortKey, sortDirection]
   );
 
+  const filteredEntries = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return sortedEntries;
+    return sortedEntries.filter(
+      (entry) =>
+        entry.description.toLowerCase().includes(q) ||
+        entry.shortDescription.toLowerCase().includes(q) ||
+        (entry.merchant?.toLowerCase().includes(q) ?? false)
+    );
+  }, [sortedEntries, search]);
+
   const pagedEntries = useMemo(
-    () => sortedEntries.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [sortedEntries, page, rowsPerPage]
+    () => filteredEntries.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [filteredEntries, page, rowsPerPage]
   );
 
   const highlightRowRef = useRef<HTMLTableRowElement>(null);
@@ -290,6 +304,39 @@ export function StatementView({
         />
 
         <Paper variant="outlined" sx={{ borderColor: 'divider', overflow: 'hidden' }}>
+          <Box sx={{ px: { xs: 2, md: 3 }, pt: 2, pb: 1 }}>
+            <TextField
+              size="small"
+              placeholder="Search description or merchant…"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(0);
+              }}
+              fullWidth
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRoundedIcon fontSize="small" color="action" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: search ? (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        aria-label="Clear search"
+                        onClick={() => { setSearch(''); setPage(0); }}
+                        edge="end"
+                      >
+                        <CloseRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ) : null,
+                },
+              }}
+            />
+          </Box>
           <TableContainer>
             <Table size="medium" aria-label="Bank statement entries">
               <TableHead>
@@ -324,8 +371,9 @@ export function StatementView({
                     <TableCell colSpan={COLUMNS.length + 2} sx={{ border: 0 }}>
                       <Box sx={{ py: 6, textAlign: 'center' }}>
                         <Typography color="text.secondary">
-                          No entries for this month yet. Import a bank statement to get
-                          started.
+                          {search.trim()
+                            ? 'No entries match your search.'
+                            : 'No entries for this month yet. Import a bank statement to get started.'}
                         </Typography>
                       </Box>
                     </TableCell>
@@ -353,7 +401,7 @@ export function StatementView({
 
           <TablePagination
             component="div"
-            count={sortedEntries.length}
+            count={filteredEntries.length}
             page={page}
             onPageChange={(_, nextPage) => setPage(nextPage)}
             rowsPerPage={rowsPerPage}

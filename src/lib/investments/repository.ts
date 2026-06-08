@@ -82,4 +82,7 @@ export interface InvestmentRepository {
     userId: string,
     positionId: string
   ): Promise<void>;
+
+  /** Entry ids linked to any of the user's applications (for deduplication). */
+  listAllApplicationEntryIds(userId: string): Promise<string[]>;
 }

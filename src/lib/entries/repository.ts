@@ -111,4 +111,7 @@ export interface EntryRepository {
     userId: string,
     month: MonthFilter
   ): Promise<{ category: Entry.Category; total: number }[]>;
+
+  /** All non-deleted outcome entries with category 'investment', newest first. */
+  listInvestmentOutcomes(userId: string): Promise<Entry.Record[]>;
 }

@@ -111,6 +111,7 @@ export async function createMongoInvestmentRepository(): Promise<InvestmentRepos
           investmentName: nameById.get(investmentId) ?? 'Unknown',
           value: document.value,
           appliedAt: document.applied_at.toISOString(),
+          source: 'application' as const,
         };
       });
     },
@@ -159,6 +160,13 @@ export async function createMongoInvestmentRepository(): Promise<InvestmentRepos
         user_id: parseObjectId(userId),
         investment_id: new ObjectId(positionId),
       });
+    },
+
+    async listAllApplicationEntryIds(userId): Promise<string[]> {
+      const documents = await collections.applications
+        .find({ user_id: parseObjectId(userId) }, { projection: { entry_id: 1 } })
+        .toArray();
+      return documents.map((doc) => doc.entry_id.toHexString());
     },
   };
 }

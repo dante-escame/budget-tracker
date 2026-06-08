@@ -42,8 +42,29 @@ export function createInvestmentService(
       return buildPortfolio(positions, applications);
     },
 
-    listApplications(userId: string): Promise<Investment.ApplicationRecord[]> {
-      return repository.listApplications(userId);
+    async listApplications(userId: string): Promise<Investment.ApplicationRecord[]> {
+      const [linked, allEntryIds, investmentEntries] = await Promise.all([
+        repository.listApplications(userId),
+        repository.listAllApplicationEntryIds(userId),
+        entryService.listInvestmentOutcomes(userId),
+      ]);
+
+      const linkedSet = new Set(allEntryIds);
+      const unlinked: Investment.ApplicationRecord[] = investmentEntries
+        .filter((entry) => !linkedSet.has(entry.id))
+        .map((entry) => ({
+          id: entry.id,
+          investmentId: null,
+          investmentName: entry.merchant ?? entry.description,
+          entryDescription: entry.description,
+          value: entry.value,
+          appliedAt: entry.occurredAt,
+          source: 'statement_entry' as const,
+        }));
+
+      return [...linked, ...unlinked].sort(
+        (a, b) => b.appliedAt.localeCompare(a.appliedAt)
+      );
     },
 
     createPosition(
@@ -106,6 +127,31 @@ export function createInvestmentService(
         entryId,
       });
 
+      return true;
+    },
+
+    /**
+     * Links an existing statement entry (already in the entries collection) to an
+     * investment position by creating an ApplicationDocument. The entry is not
+     * duplicated. Returns false when the position or entry doesn't exist.
+     */
+    async linkEntryToInvestment(
+      userId: string,
+      investmentId: string,
+      entryId: string
+    ): Promise<boolean> {
+      const [position, entry] = await Promise.all([
+        repository.getPosition(userId, investmentId),
+        entryService.getEntry(userId, entryId),
+      ]);
+      if (!position || !entry) return false;
+
+      await repository.createApplication(userId, {
+        investmentId,
+        value: entry.value,
+        appliedAt: new Date(entry.occurredAt),
+        entryId,
+      });
       return true;
     },
 

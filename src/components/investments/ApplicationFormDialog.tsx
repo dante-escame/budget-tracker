@@ -9,6 +9,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import InputAdornment from '@mui/material/InputAdornment';
+import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 
@@ -22,23 +23,30 @@ function today(): string {
 export function ApplicationFormDialog({
   open,
   investment,
+  positions,
   onClose,
   onSaved,
 }: {
   open: boolean;
+  // When provided, the position is fixed. When null, a selector is shown using `positions`.
   investment: Investment.PositionRecord | null;
+  positions?: Investment.PositionRecord[];
   onClose: () => void;
   onSaved: () => void;
 }) {
-  // Seeded on mount; the parent remounts this dialog (changing `key`) on each
-  // open, which resets the fields.
+  const [selectedId, setSelectedId] = useState('');
   const [value, setValue] = useState('');
   const [appliedAt, setAppliedAt] = useState(today());
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const resolvedId = investment?.id ?? selectedId;
+
   async function handleSubmit() {
-    if (!investment) return;
+    if (!resolvedId) {
+      setError('Select an investment position.');
+      return;
+    }
 
     const centavos = reaisToCentavos(value);
     if (centavos === null || centavos <= 0) {
@@ -51,7 +59,7 @@ export function ApplicationFormDialog({
 
     try {
       const response = await fetch(
-        `/api/investments/${investment.id}/applications`,
+        `/api/investments/${resolvedId}/applications`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -82,11 +90,32 @@ export function ApplicationFormDialog({
         <Stack spacing={2.5} sx={{ mt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
 
-          {investment && (
+          {investment ? (
             <DialogContentText>
               Applying to <strong>{investment.name}</strong>. This also records an
               outcome in your statement.
             </DialogContentText>
+          ) : (
+            <TextField
+              select
+              label="Investment position"
+              value={selectedId}
+              onChange={(event) => setSelectedId(event.target.value)}
+              fullWidth
+              autoFocus
+              disabled={!positions || positions.length === 0}
+              helperText={
+                positions && positions.length === 0
+                  ? 'No investment positions yet. Add one first.'
+                  : undefined
+              }
+            >
+              {(positions ?? []).map((pos) => (
+                <MenuItem key={pos.id} value={pos.id}>
+                  {pos.name}
+                </MenuItem>
+              ))}
+            </TextField>
           )}
 
           <TextField
@@ -100,7 +129,7 @@ export function ApplicationFormDialog({
               },
             }}
             fullWidth
-            autoFocus
+            autoFocus={!!investment}
           />
 
           <TextField

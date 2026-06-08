@@ -26,3 +26,22 @@ export async function PATCH(
 
   return NextResponse.json(updated);
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authService = await getAuthService();
+  const { user } = await authService.peekRequestSession();
+  if (!user) return unauthorized('Authentication is required.');
+
+  const { id } = await params;
+  const entryService = await getEntryService();
+  const deleted = await entryService.softDeleteEntry(user.id, id);
+
+  if (!deleted) {
+    return NextResponse.json({ error: 'Transaction not found.' }, { status: 404 });
+  }
+
+  return NextResponse.json({ deleted: true });
+}

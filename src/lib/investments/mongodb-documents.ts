@@ -52,9 +52,16 @@ export namespace Investment {
   // Serializable application row for the history table.
   export interface ApplicationRecord {
     id: string;
-    investmentId: string;
+    // null for entries manually tagged 'investment' in the statement (no linked position).
+    investmentId: string | null;
     investmentName: string;
+    // Original entry description, present only for statement_entry rows so the
+    // user can identify the transaction before assigning it to a position.
+    entryDescription?: string;
     value: number; // centavos
     appliedAt: string; // ISO date
+    // 'application' = created via the investments form; 'statement_entry' = outcome
+    // entry whose category was set to 'investment' in the statement view.
+    source: 'application' | 'statement_entry';
   }
 }

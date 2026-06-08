@@ -217,6 +217,10 @@ export function createEntryService(repository: EntryRepository) {
       return repository.updateEntryFields(userId, entryId, fields);
     },
 
+    listInvestmentOutcomes(userId: string): Promise<Entry.Record[]> {
+      return repository.listInvestmentOutcomes(userId);
+    },
+
     async getMonthlyOutcomesByCategory(
       userId: string,
       month: MonthFilter

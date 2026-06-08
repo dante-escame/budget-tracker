@@ -314,6 +314,20 @@ export async function createMongoEntryRepository(): Promise<EntryRepository> {
 
       return results.map((r) => ({ category: r._id, total: r.total }));
     },
+
+    async listInvestmentOutcomes(userId): Promise<Entry.Record[]> {
+      const documents = await collections.entries
+        .find({
+          user_id: parseObjectId(userId),
+          flow: 'outcome',
+          category: 'investment',
+          deleted_at: null,
+        })
+        .sort({ occurred_at: -1, _id: -1 })
+        .toArray();
+
+      return documents.map(mapEntryRecord);
+    },
   };
 }
 

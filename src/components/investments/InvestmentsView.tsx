@@ -28,6 +28,7 @@ import Typography from '@mui/material/Typography';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import PlaylistAddRoundedIcon from '@mui/icons-material/PlaylistAddRounded';
 import {
   Cell,
@@ -52,6 +53,7 @@ import {
 } from '@/components/investments/format';
 import { InvestmentFormDialog } from '@/components/investments/InvestmentFormDialog';
 import { ApplicationFormDialog } from '@/components/investments/ApplicationFormDialog';
+import { AssignEntryDialog } from '@/components/investments/AssignEntryDialog';
 
 const HISTORY_ROWS_PER_PAGE = [10, 25, 50];
 
@@ -72,6 +74,11 @@ export function InvestmentsView({
   const [deleteTarget, setDeleteTarget] = useState<Investment.PositionRecord | null>(
     null
   );
+  const [historyAppOpen, setHistoryAppOpen] = useState(false);
+  const [historyAppKey, setHistoryAppKey] = useState(0);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignKey, setAssignKey] = useState(0);
+  const [assignTarget, setAssignTarget] = useState<Investment.ApplicationRecord | null>(null);
   const [pending, setPending] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [page, setPage] = useState(0);
@@ -117,6 +124,12 @@ export function InvestmentsView({
     setAppOpen(true);
   }
 
+  function openAssign(application: Investment.ApplicationRecord) {
+    setAssignTarget(application);
+    setAssignKey((key) => key + 1);
+    setAssignOpen(true);
+  }
+
   async function handleDeletePosition() {
     if (!deleteTarget) return;
     setPending(true);
@@ -140,6 +153,7 @@ export function InvestmentsView({
   }
 
   async function handleDeleteApplication(application: Investment.ApplicationRecord) {
+    if (!application.investmentId) return;
     try {
       const response = await fetch(
         `/api/investments/${application.investmentId}/applications/${application.id}`,
@@ -151,6 +165,21 @@ export function InvestmentsView({
         return;
       }
       setToast('Application deleted.');
+      router.refresh();
+    } catch {
+      setToast('Network error. Please try again.');
+    }
+  }
+
+  async function handleDeleteStatementEntry(application: Investment.ApplicationRecord) {
+    try {
+      const response = await fetch(`/api/entries/${application.id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setToast(data?.error ?? 'Could not delete entry.');
+        return;
+      }
+      setToast('Entry deleted.');
       router.refresh();
     } catch {
       setToast('Network error. Please try again.');
@@ -321,14 +350,30 @@ export function InvestmentsView({
         </Paper>
 
         <Paper variant="outlined" sx={{ borderColor: 'divider', overflow: 'hidden' }}>
-          <Typography variant="h6" sx={{ p: { xs: 2, md: 3 }, pb: 1 }}>
-            History
-          </Typography>
+          <Stack
+            direction="row"
+            sx={{ px: { xs: 2, md: 3 }, pt: { xs: 2, md: 3 }, pb: 1, justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <Typography variant="h6">History</Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<AddRoundedIcon />}
+              onClick={() => {
+                setHistoryAppKey((k) => k + 1);
+                setHistoryAppOpen(true);
+              }}
+              disabled={positions.length === 0}
+            >
+              Add
+            </Button>
+          </Stack>
           <TableContainer>
             <Table size="small" aria-label="Application history">
               <TableHead>
                 <TableRow sx={{ bgcolor: 'secondary.light' }}>
                   <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Description</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Investment</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 600 }}>
                     Amount
@@ -341,7 +386,7 @@ export function InvestmentsView({
               <TableBody>
                 {pagedApplications.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} sx={{ border: 0 }}>
+                    <TableCell colSpan={5} sx={{ border: 0 }}>
                       <Box sx={{ py: 5, textAlign: 'center' }}>
                         <Typography color="text.secondary">
                           No applications yet.
@@ -355,19 +400,49 @@ export function InvestmentsView({
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>
                         {formatDate(application.appliedAt)}
                       </TableCell>
-                      <TableCell>{application.investmentName}</TableCell>
+                      <TableCell sx={{ color: 'text.secondary' }}>
+                        {application.entryDescription ?? '—'}
+                      </TableCell>
+                      <TableCell>
+                        {application.source === 'statement_entry' ? (
+                          <Chip size="small" label="Unassigned" variant="outlined" color="warning" />
+                        ) : (
+                          application.investmentName
+                        )}
+                      </TableCell>
                       <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                         {formatCurrency(application.value, 'BRL')}
                       </TableCell>
-                      <TableCell align="right">
-                        <Tooltip title="Delete application">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeleteApplication(application)}
-                          >
-                            <DeleteOutlineRoundedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                        {application.source === 'statement_entry' ? (
+                          <>
+                            <Tooltip title="Assign to investment">
+                              <IconButton
+                                size="small"
+                                onClick={() => openAssign(application)}
+                              >
+                                <LinkRoundedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete entry">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDeleteStatementEntry(application)}
+                              >
+                                <DeleteOutlineRoundedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </>
+                        ) : (
+                          <Tooltip title="Delete application">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDeleteApplication(application)}
+                            >
+                              <DeleteOutlineRoundedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -408,6 +483,31 @@ export function InvestmentsView({
         onClose={() => setAppOpen(false)}
         onSaved={() => {
           setToast('Application added.');
+          router.refresh();
+        }}
+      />
+
+      <ApplicationFormDialog
+        key={`history-app-${historyAppKey}`}
+        open={historyAppOpen}
+        investment={null}
+        positions={positions}
+        onClose={() => setHistoryAppOpen(false)}
+        onSaved={() => {
+          setToast('Application added.');
+          router.refresh();
+        }}
+      />
+
+      <AssignEntryDialog
+        key={`assign-${assignKey}`}
+        open={assignOpen}
+        entryId={assignTarget?.id ?? ''}
+        entryDescription={assignTarget?.entryDescription ?? assignTarget?.investmentName ?? ''}
+        positions={positions}
+        onClose={() => setAssignOpen(false)}
+        onSaved={() => {
+          setToast('Entry assigned to investment.');
           router.refresh();
         }}
       />

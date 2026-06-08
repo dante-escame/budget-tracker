@@ -18,6 +18,7 @@ export function buildPortfolio(
   >();
 
   for (const application of applications) {
+    if (!application.investmentId) continue;
     const current = totals.get(application.investmentId) ?? {
       totalApplied: 0,
       lastApplicationAt: null,
