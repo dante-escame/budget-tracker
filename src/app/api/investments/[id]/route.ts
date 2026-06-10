@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 
+import { notFound, parseBodyWithSchema, unauthorized } from '@/lib/auth/http';
 import { getAuthService } from '@/lib/auth/runtime';
-import { parseBodyWithSchema, unauthorized } from '@/lib/auth/http';
-import { getEntryService } from '@/lib/entries/runtime';
-import { entryUpdateSchema } from '@/lib/entries/schemas';
+import { getInvestmentService } from '@/lib/investments/runtime';
+import { updateInvestmentSchema } from '@/lib/investments/schemas';
 
 export async function PATCH(
   request: Request,
@@ -13,18 +13,15 @@ export async function PATCH(
   const { user } = await authService.peekRequestSession();
   if (!user) return unauthorized('Authentication is required.');
 
-  const parsed = await parseBodyWithSchema(request, entryUpdateSchema);
+  const parsed = await parseBodyWithSchema(request, updateInvestmentSchema);
   if (!parsed.ok) return parsed.response;
 
   const { id } = await params;
-  const entryService = await getEntryService();
-  const updated = await entryService.updateEntry(user.id, id, parsed.data);
+  const investmentService = await getInvestmentService();
+  const position = await investmentService.updatePosition(user.id, id, parsed.data);
+  if (!position) return notFound('Investment not found.');
 
-  if (!updated) {
-    return NextResponse.json({ error: 'Transaction not found.' }, { status: 404 });
-  }
-
-  return NextResponse.json(updated);
+  return NextResponse.json({ position });
 }
 
 export async function DELETE(
@@ -36,12 +33,9 @@ export async function DELETE(
   if (!user) return unauthorized('Authentication is required.');
 
   const { id } = await params;
-  const entryService = await getEntryService();
-  const deleted = await entryService.softDeleteEntry(user.id, id);
-
-  if (!deleted) {
-    return NextResponse.json({ error: 'Transaction not found.' }, { status: 404 });
-  }
+  const investmentService = await getInvestmentService();
+  const deleted = await investmentService.deletePosition(user.id, id);
+  if (!deleted) return notFound('Investment not found.');
 
   return NextResponse.json({ deleted: true });
 }

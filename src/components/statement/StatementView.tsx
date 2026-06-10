@@ -14,6 +14,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Snackbar from '@mui/material/Snackbar';
@@ -27,13 +28,17 @@ import TablePagination from '@mui/material/TablePagination';
 import TableRow from '@mui/material/TableRow';
 import TableSortLabel from '@mui/material/TableSortLabel';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import FileUploadRoundedIcon from '@mui/icons-material/FileUploadRounded';
+import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
+import PushPinRoundedIcon from '@mui/icons-material/PushPinRounded';
 import SavingsRoundedIcon from '@mui/icons-material/SavingsRounded';
+import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 
 import { ALL_CATEGORIES, CATEGORY_LABELS } from '@/lib/entries/categories';
 import type { Entry } from '@/lib/entries';
@@ -60,6 +65,9 @@ const COLUMNS: Column[] = [
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
+// A statement entry decorated with whether it matches a marked fixed expense.
+export type StatementEntry = Entry.Record & { isFixed: boolean };
+
 export function StatementView({
   months,
   selectedMonth,
@@ -71,7 +79,7 @@ export function StatementView({
 }: {
   months: Entry.MonthOption[];
   selectedMonth: Entry.MonthOption;
-  entries: Entry.Record[];
+  entries: StatementEntry[];
   highlightEntryId?: string | null;
   baseData?: BaseData.Record | null;
   startingBalance?: number | null;
@@ -81,13 +89,14 @@ export function StatementView({
   // Local copy of the server entries so an inline edit reflects immediately
   // without a full reload. Re-synced during render whenever the prop changes
   // (e.g. month switch) — the documented React pattern, avoiding a sync effect.
-  const [rows, setRows] = useState<Entry.Record[]>(entries);
+  const [rows, setRows] = useState<StatementEntry[]>(entries);
   const [syncedEntries, setSyncedEntries] = useState(entries);
   if (syncedEntries !== entries) {
     setSyncedEntries(entries);
     setRows(entries);
   }
 
+  const [fixedPendingId, setFixedPendingId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [baseDataOpen, setBaseDataOpen] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
@@ -96,6 +105,7 @@ export function StatementView({
   const [sortKey, setSortKey] = useState<SortKey>('occurredAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [search, setSearch] = useState('');
   // Start on the page holding the linked entry when arriving via an "origin" link.
   const [page, setPage] = useState(() =>
     initialPage(entries, highlightEntryId, rowsPerPage)
@@ -112,9 +122,20 @@ export function StatementView({
     [rows, sortKey, sortDirection]
   );
 
+  const filteredEntries = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return sortedEntries;
+    return sortedEntries.filter(
+      (entry) =>
+        entry.description.toLowerCase().includes(q) ||
+        entry.shortDescription.toLowerCase().includes(q) ||
+        (entry.merchant?.toLowerCase().includes(q) ?? false)
+    );
+  }, [sortedEntries, search]);
+
   const pagedEntries = useMemo(
-    () => sortedEntries.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [sortedEntries, page, rowsPerPage]
+    () => filteredEntries.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [filteredEntries, page, rowsPerPage]
   );
 
   const highlightRowRef = useRef<HTMLTableRowElement>(null);
@@ -142,8 +163,40 @@ export function StatementView({
   }
 
   function handleRowSaved(updated: Entry.Record) {
-    setRows((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
+    setRows((prev) =>
+      prev.map((row) =>
+        row.id === updated.id ? { ...updated, isFixed: row.isFixed } : row
+      )
+    );
     setToast('Transaction updated.');
+  }
+
+  async function handleToggleFixed(entry: StatementEntry) {
+    setFixedPendingId(entry.id);
+    try {
+      const response = await fetch('/api/fixed-expenses', {
+        method: entry.isFixed ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entryId: entry.id }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setToast(data?.error ?? 'Could not update fixed expense.');
+        return;
+      }
+
+      setToast(
+        entry.isFixed
+          ? 'Removed from fixed expenses.'
+          : 'Marked as fixed expense. Future imports will be flagged automatically.'
+      );
+      router.refresh();
+    } catch {
+      setToast('Network error. Please try again.');
+    } finally {
+      setFixedPendingId(null);
+    }
   }
 
   async function handleApplyRules() {
@@ -251,6 +304,39 @@ export function StatementView({
         />
 
         <Paper variant="outlined" sx={{ borderColor: 'divider', overflow: 'hidden' }}>
+          <Box sx={{ px: { xs: 2, md: 3 }, pt: 2, pb: 1 }}>
+            <TextField
+              size="small"
+              placeholder="Search description or merchant…"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(0);
+              }}
+              fullWidth
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRoundedIcon fontSize="small" color="action" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: search ? (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        aria-label="Clear search"
+                        onClick={() => { setSearch(''); setPage(0); }}
+                        edge="end"
+                      >
+                        <CloseRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ) : null,
+                },
+              }}
+            />
+          </Box>
           <TableContainer>
             <Table size="medium" aria-label="Bank statement entries">
               <TableHead>
@@ -271,6 +357,9 @@ export function StatementView({
                       </TableSortLabel>
                     </TableCell>
                   ))}
+                  <TableCell align="center" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Fixed
+                  </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 600, color: 'text.primary' }}>
                     Actions
                   </TableCell>
@@ -279,11 +368,12 @@ export function StatementView({
               <TableBody>
                 {pagedEntries.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={COLUMNS.length + 1} sx={{ border: 0 }}>
+                    <TableCell colSpan={COLUMNS.length + 2} sx={{ border: 0 }}>
                       <Box sx={{ py: 6, textAlign: 'center' }}>
                         <Typography color="text.secondary">
-                          No entries for this month yet. Import a bank statement to get
-                          started.
+                          {search.trim()
+                            ? 'No entries match your search.'
+                            : 'No entries for this month yet. Import a bank statement to get started.'}
                         </Typography>
                       </Box>
                     </TableCell>
@@ -299,6 +389,8 @@ export function StatementView({
                         rowRef={highlighted ? highlightRowRef : undefined}
                         onSaved={handleRowSaved}
                         onError={setToast}
+                        fixedPending={fixedPendingId === entry.id}
+                        onToggleFixed={() => handleToggleFixed(entry)}
                       />
                     );
                   })
@@ -309,7 +401,7 @@ export function StatementView({
 
           <TablePagination
             component="div"
-            count={sortedEntries.length}
+            count={filteredEntries.length}
             page={page}
             onPageChange={(_, nextPage) => setPage(nextPage)}
             rowsPerPage={rowsPerPage}
@@ -387,12 +479,16 @@ function EntryRow({
   rowRef,
   onSaved,
   onError,
+  fixedPending,
+  onToggleFixed,
 }: {
-  entry: Entry.Record;
+  entry: StatementEntry;
   highlighted?: boolean;
   rowRef?: React.Ref<HTMLTableRowElement>;
   onSaved: (updated: Entry.Record) => void;
   onError: (message: string) => void;
+  fixedPending: boolean;
+  onToggleFixed: () => void;
 }) {
   const isIncome = entry.flow === 'income';
   const isCard = entry.source === 'credit_card_bill';
@@ -540,6 +636,29 @@ function EntryRow({
           {formatSignedAmount(entry.value, entry.flow, entry.currency)}
         </Typography>
       </TableCell>
+      <TableCell align="center">
+        <Tooltip
+          title={entry.isFixed ? 'Unmark as fixed expense' : 'Mark as fixed expense'}
+        >
+          <span>
+            <IconButton
+              size="small"
+              color={entry.isFixed ? 'primary' : 'default'}
+              onClick={onToggleFixed}
+              disabled={fixedPending}
+              aria-label={
+                entry.isFixed ? 'Unmark as fixed expense' : 'Mark as fixed expense'
+              }
+            >
+              {entry.isFixed ? (
+                <PushPinRoundedIcon fontSize="small" />
+              ) : (
+                <PushPinOutlinedIcon fontSize="small" />
+              )}
+            </IconButton>
+          </span>
+        </Tooltip>
+      </TableCell>
       <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
         {editing ? (
           <>
@@ -677,11 +796,11 @@ function initialPage(
   return index >= 0 ? Math.floor(index / rowsPerPage) : 0;
 }
 
-function sortEntries(
-  entries: Entry.Record[],
+function sortEntries<T extends Entry.Record>(
+  entries: T[],
   key: SortKey,
   direction: SortDirection
-): Entry.Record[] {
+): T[] {
   const factor = direction === 'asc' ? 1 : -1;
   return [...entries].sort((a, b) => {
     let comparison: number;

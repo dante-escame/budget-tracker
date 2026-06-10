@@ -11,6 +11,13 @@ export interface MonthFilter {
   month: number; // 1-12
 }
 
+/**
+ * A manually-created entry (not imported from a statement). Same shape as an
+ * `EntryDraft` minus the `externalId` idempotency key — manual entries carry no
+ * source identifier, so the sparse unique index leaves them unconstrained.
+ */
+export type ManualEntryInput = Omit<EntryDraft, 'externalId'>;
+
 export interface EntryRepository {
   /**
    * Upserts drafts keyed by (user_id, external_id). Existing rows are left
@@ -21,6 +28,15 @@ export interface EntryRepository {
     userId: string,
     drafts: EntryDraft[]
   ): Promise<BulkUpsertResult>;
+
+  /** Inserts a single manually-created entry. Returns the new entry's id. */
+  createEntry(
+    userId: string,
+    input: ManualEntryInput
+  ): Promise<{ id: string }>;
+
+  /** Soft-deletes an entry scoped to the user. Returns whether one was removed. */
+  softDeleteEntry(userId: string, id: string): Promise<boolean>;
 
   /** Non-deleted entries for a user within a competence month, newest first. */
   listEntriesByMonth(
@@ -95,4 +111,7 @@ export interface EntryRepository {
     userId: string,
     month: MonthFilter
   ): Promise<{ category: Entry.Category; total: number }[]>;
+
+  /** All non-deleted outcome entries with category 'investment', newest first. */
+  listInvestmentOutcomes(userId: string): Promise<Entry.Record[]>;
 }

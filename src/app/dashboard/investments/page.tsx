@@ -1,21 +1,17 @@
-import Container from '@mui/material/Container';
-import Stack from '@mui/material/Stack';
-import Typography from '@mui/material/Typography';
+import { requireVerifiedAuthenticatedUser } from '@/lib/auth/guards';
+import { getInvestmentService } from '@/lib/investments/runtime';
+import { InvestmentsView } from '@/components/investments/InvestmentsView';
 
-export default function InvestmentsPage() {
-  return (
-    <Container maxWidth="md" sx={{ py: { xs: 6, md: 8 } }}>
-      <Stack spacing={1}>
-        <Typography variant="overline" color="primary.dark">
-          Portfolio
-        </Typography>
-        <Typography variant="h4" component="h1" color="text.primary">
-          Investments
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Your investment portfolio and performance will appear here.
-        </Typography>
-      </Stack>
-    </Container>
-  );
+export const dynamic = 'force-dynamic';
+
+export default async function InvestmentsPage() {
+  const user = await requireVerifiedAuthenticatedUser();
+  const investmentService = await getInvestmentService();
+
+  const [positions, applications] = await Promise.all([
+    investmentService.listPortfolio(user.id),
+    investmentService.listApplications(user.id),
+  ]);
+
+  return <InvestmentsView positions={positions} applications={applications} />;
 }

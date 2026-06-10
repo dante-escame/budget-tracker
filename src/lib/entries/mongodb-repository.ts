@@ -7,9 +7,10 @@ import type { Entry } from '@/lib/entries/mongodb-documents';
 import type {
   BulkUpsertResult,
   EntryRepository,
+  ManualEntryInput,
   MonthFilter,
 } from '@/lib/entries/repository';
-import { toShortDescription, type EntryDraft } from '@/lib/entries/transform';
+import { toShortDescription } from '@/lib/entries/transform';
 
 export async function createMongoEntryRepository(): Promise<EntryRepository> {
   const collections = await getEntryCollections();
@@ -41,6 +42,29 @@ export async function createMongoEntryRepository(): Promise<EntryRepository> {
 
       const inserted = result.upsertedCount ?? 0;
       return { inserted, skipped: drafts.length - inserted };
+    },
+
+    async createEntry(userId, input): Promise<{ id: string }> {
+      const now = new Date();
+      const document: Entry.Document = {
+        user_id: parseObjectId(userId),
+        ...buildInsertFields(input, now),
+      };
+
+      const result = await collections.entries.insertOne(document);
+      return { id: result.insertedId.toHexString() };
+    },
+
+    async softDeleteEntry(userId, id): Promise<boolean> {
+      if (!ObjectId.isValid(id)) return false;
+
+      const now = new Date();
+      const result = await collections.entries.updateOne(
+        { _id: new ObjectId(id), user_id: parseObjectId(userId), deleted_at: null },
+        { $set: { deleted_at: now, updated_at: now } }
+      );
+
+      return result.modifiedCount === 1;
     },
 
     async listEntriesByMonth(userId, month): Promise<Entry.Record[]> {
@@ -290,6 +314,20 @@ export async function createMongoEntryRepository(): Promise<EntryRepository> {
 
       return results.map((r) => ({ category: r._id, total: r.total }));
     },
+
+    async listInvestmentOutcomes(userId): Promise<Entry.Record[]> {
+      const documents = await collections.entries
+        .find({
+          user_id: parseObjectId(userId),
+          flow: 'outcome',
+          category: 'investment',
+          deleted_at: null,
+        })
+        .sort({ occurred_at: -1, _id: -1 })
+        .toArray();
+
+      return documents.map(mapEntryRecord);
+    },
   };
 }
 
@@ -324,7 +362,7 @@ function mapTaggingRuleRecord(
 // Fields applied only when the entry is first inserted. Excludes user_id and
 // external_id, which the upsert filter sets on the new document automatically.
 function buildInsertFields(
-  draft: EntryDraft,
+  draft: ManualEntryInput,
   now: Date
 ): Omit<Entry.Document, '_id' | 'user_id' | 'external_id'> {
   return {

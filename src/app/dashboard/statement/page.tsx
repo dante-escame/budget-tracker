@@ -2,7 +2,12 @@ import { requireVerifiedAuthenticatedUser } from '@/lib/auth/guards';
 import { getEntryService } from '@/lib/entries/runtime';
 import { getBaseDataService } from '@/lib/base-data/runtime';
 import type { Entry } from '@/lib/entries';
-import { StatementView } from '@/components/statement/StatementView';
+import { getFixedExpenseService } from '@/lib/fixed-expenses/runtime';
+import { fixedExpenseSignature } from '@/lib/fixed-expenses/signature';
+import {
+  StatementView,
+  type StatementEntry,
+} from '@/components/statement/StatementView';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,18 +19,20 @@ export default async function StatementPage({
   searchParams: Promise<{ month?: string; entry?: string }>;
 }) {
   const user = await requireVerifiedAuthenticatedUser();
-  const [entryService, baseDataService] = await Promise.all([
+  const [entryService, baseDataService, fixedExpenseService] = await Promise.all([
     getEntryService(),
     getBaseDataService(),
+    getFixedExpenseService(),
   ]);
 
   const months = await entryService.listAvailableMonths(user.id);
   const { month, entry } = await searchParams;
   const selectedMonth = resolveSelectedMonth(month, months);
 
-  const [entries, baseData] = await Promise.all([
+  const [entries, baseData, signatures] = await Promise.all([
     entryService.listMonthlyStatement(user.id, selectedMonth),
     baseDataService.getBaseData(user.id),
+    fixedExpenseService.listSignatures(user.id),
   ]);
 
   // With base data set, show the running balance (baseline + accumulated net).
@@ -38,11 +45,21 @@ export default async function StatementPage({
       )
     : null;
 
+  // Derive `isFixed` per row: any entry whose signature is marked is fixed —
+  // including rows that first appeared in this month's import.
+  const fixedSignatures = new Set(signatures.map((item) => item.signature));
+  const decoratedEntries: StatementEntry[] = entries.map((item) => ({
+    ...item,
+    isFixed: fixedSignatures.has(
+      fixedExpenseSignature(item.merchant, item.description)
+    ),
+  }));
+
   return (
     <StatementView
       months={months}
       selectedMonth={selectedMonth}
-      entries={entries}
+      entries={decoratedEntries}
       highlightEntryId={entry ?? null}
       baseData={baseData}
       startingBalance={balance?.startingBalance ?? null}
