@@ -65,7 +65,7 @@ export const RISK_COLOR: Record<
 // still allowing free text (sectors, instruments, coin kinds…).
 export const TYPE_SUGGESTIONS: Record<Investment.Category, string[]> = {
   fixed_income: ['Selic', '% CDI', 'Prefixado'],
-  crypto: ['Stable Coin', 'Shit Coin', 'Bitcoin', 'Altcoin'],
+  crypto: ['Stable Coin', 'Meme Coin', 'Bitcoin', 'Altcoin'],
   stocks: ['Banking', 'Electricity', 'Telephony', 'Retail', 'Commodities', 'Technology'],
   reits: ['Logistics', 'Shopping', 'Corporate', 'Paper', 'Hybrid'],
 };

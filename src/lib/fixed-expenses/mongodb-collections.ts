@@ -18,7 +18,12 @@ export async function getFixedExpenseCollections(): Promise<FixedExpenseCollecti
   const collections = createFixedExpenseCollections(db);
 
   if (!globalThis.__fixedExpenseIndexesPromise__) {
-    globalThis.__fixedExpenseIndexesPromise__ = ensureFixedExpenseIndexes(collections);
+    globalThis.__fixedExpenseIndexesPromise__ = ensureFixedExpenseIndexes(
+      collections
+    ).catch((error) => {
+      globalThis.__fixedExpenseIndexesPromise__ = undefined;
+      throw error;
+    });
   }
 
   await globalThis.__fixedExpenseIndexesPromise__;

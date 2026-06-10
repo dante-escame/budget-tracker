@@ -25,7 +25,9 @@ function application(
     investmentId: 'p1',
     investmentName: 'Tesouro Selic',
     value: 10_000,
+    flow: 'outcome',
     appliedAt: '2026-01-01T00:00:00.000Z',
+    source: 'application',
     ...overrides,
   };
 }

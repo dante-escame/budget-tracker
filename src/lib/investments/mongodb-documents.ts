@@ -33,6 +33,8 @@ export namespace Investment {
     flow: 'income' | 'outcome';
     applied_at: Date;
     entry_id: ObjectId; // linked statement entry
+    // 'application' = entry was created by this record; 'statement_entry' = pre-existing entry linked by the user.
+    source: 'application' | 'statement_entry';
     created_at: Date;
   }
 
@@ -44,6 +46,7 @@ export namespace Investment {
     type: string;
     risk: Risk;
     currentValue: number; // centavos (market value, or total applied fallback)
+    storedCurrentValue: number; // raw stored market value — 0 means "not explicitly set"
     totalApplied: number; // centavos, sum of applications
     lastApplicationAt: string | null; // ISO date
     sharePct: number; // 0..100 of wallet by currentValue

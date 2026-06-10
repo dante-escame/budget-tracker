@@ -26,7 +26,7 @@ export function createFixedExpenseService(
       if (!entry) return false;
 
       const signature = fixedExpenseSignature(entry.merchant, entry.description);
-      const label = entry.merchant ?? entry.shortDescription;
+      const label = entry.merchant?.trim() || entry.shortDescription;
       await repository.upsertBySignature(userId, signature, label);
       return true;
     },

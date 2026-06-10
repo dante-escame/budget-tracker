@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -79,6 +79,11 @@ export function InvestmentsView({
     () => positions.reduce((sum, position) => sum + position.currentValue, 0),
     [positions]
   );
+
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(applications.length / rowsPerPage) - 1);
+    if (page > maxPage) setPage(maxPage);
+  }, [applications.length, rowsPerPage, page]);
 
   const pagedApplications = useMemo(
     () => applications.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),

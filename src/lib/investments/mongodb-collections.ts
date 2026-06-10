@@ -52,5 +52,10 @@ async function ensureInvestmentIndexes(
       key: { investment_id: 1 },
       name: 'investment_applications_investment',
     },
+    {
+      key: { entry_id: 1 },
+      name: 'investment_applications_entry_unique',
+      unique: true,
+    },
   ]);
 }

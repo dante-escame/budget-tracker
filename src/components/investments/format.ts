@@ -14,11 +14,15 @@ export function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`;
 }
 
-/** Parses a reais amount (accepts "," or "." as decimal separator) into integer centavos. */
+/** Parses a reais amount (accepts pt-BR format like "1.234,56" or "1234.56") into integer centavos. */
 export function reaisToCentavos(value: string): number | null {
-  const trimmed = value.trim().replace(',', '.');
-  if (trimmed === '') return null;
-  const amount = Number(trimmed);
+  let normalized = value.trim();
+  if (normalized === '') return null;
+  if (normalized.includes(',')) {
+    // pt-BR format: dots are thousands separators, comma is decimal
+    normalized = normalized.replace(/\./g, '').replace(',', '.');
+  }
+  const amount = Number(normalized);
   if (!Number.isFinite(amount) || amount < 0) return null;
   return Math.round(amount * 100);
 }

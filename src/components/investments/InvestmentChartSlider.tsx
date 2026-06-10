@@ -253,6 +253,7 @@ export function InvestmentChartSlider({
         nextButton={
           <IconButton
             size="small"
+            aria-label="Next slide"
             onClick={() => setActiveStep((s) => s + 1)}
             disabled={activeStep === TOTAL_STEPS - 1}
           >
@@ -262,6 +263,7 @@ export function InvestmentChartSlider({
         backButton={
           <IconButton
             size="small"
+            aria-label="Previous slide"
             onClick={() => setActiveStep((s) => s - 1)}
             disabled={activeStep === 0}
           >

@@ -39,7 +39,9 @@ function initialState(investment?: Investment.PositionRecord): FormState {
       category: investment.category,
       type: investment.type,
       risk: investment.risk,
-      currentValue: (investment.currentValue / 100).toString(),
+      currentValue: investment.storedCurrentValue > 0
+        ? (investment.storedCurrentValue / 100).toString()
+        : '',
     };
   }
   return {

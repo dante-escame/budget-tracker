@@ -15,9 +15,14 @@ export function getInvestmentService(): Promise<InvestmentService> {
     globalThis.__investmentServicePromise__ = Promise.all([
       createMongoInvestmentRepository(),
       getEntryService(),
-    ]).then(([repository, entryService]) =>
-      createInvestmentService(repository, entryService)
-    );
+    ])
+      .then(([repository, entryService]) =>
+        createInvestmentService(repository, entryService)
+      )
+      .catch((error) => {
+        globalThis.__investmentServicePromise__ = undefined;
+        throw error;
+      });
   }
 
   return globalThis.__investmentServicePromise__;

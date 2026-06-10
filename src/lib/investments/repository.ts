@@ -35,6 +35,7 @@ export interface CreateApplicationInput {
   flow: 'income' | 'outcome';
   appliedAt: Date;
   entryId: string; // linked statement entry id
+  source: 'application' | 'statement_entry';
 }
 
 export interface InvestmentRepository {
@@ -64,19 +65,20 @@ export interface InvestmentRepository {
   ): Promise<void>;
 
   /**
-   * Deletes a single application. Returns the linked entry id so the caller can
-   * soft-delete it, or null when the application doesn't exist.
+   * Deletes a single application. Returns the linked entry id and source so the
+   * caller can decide whether to soft-delete it, or null when the application
+   * doesn't exist.
    */
   deleteApplication(
     userId: string,
     appId: string
-  ): Promise<{ entryId: string } | null>;
+  ): Promise<{ entryId: string; source: 'application' | 'statement_entry' } | null>;
 
-  /** Linked entry ids of every application of a position (for cascade delete). */
+  /** Linked entry ids and sources of every application of a position (for cascade delete). */
   listApplicationEntryIdsForPosition(
     userId: string,
     positionId: string
-  ): Promise<string[]>;
+  ): Promise<{ entryId: string; source: 'application' | 'statement_entry' }[]>;
 
   /** Removes every application of a position. */
   deleteApplicationsForPosition(

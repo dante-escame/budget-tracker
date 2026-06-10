@@ -125,13 +125,17 @@ export async function createMongoInvestmentRepository(): Promise<InvestmentRepos
         flow: input.flow,
         applied_at: input.appliedAt,
         entry_id: new ObjectId(input.entryId),
+        source: input.source,
         created_at: new Date(),
       };
 
       await collections.applications.insertOne(document);
     },
 
-    async deleteApplication(userId, appId): Promise<{ entryId: string } | null> {
+    async deleteApplication(
+      userId,
+      appId
+    ): Promise<{ entryId: string; source: 'application' | 'statement_entry' } | null> {
       if (!ObjectId.isValid(appId)) return null;
 
       const document = await collections.applications.findOneAndDelete({
@@ -139,10 +143,18 @@ export async function createMongoInvestmentRepository(): Promise<InvestmentRepos
         user_id: parseObjectId(userId),
       });
 
-      return document ? { entryId: document.entry_id.toHexString() } : null;
+      return document
+        ? {
+            entryId: document.entry_id.toHexString(),
+            source: document.source ?? 'application',
+          }
+        : null;
     },
 
-    async listApplicationEntryIdsForPosition(userId, positionId): Promise<string[]> {
+    async listApplicationEntryIdsForPosition(
+      userId,
+      positionId
+    ): Promise<{ entryId: string; source: 'application' | 'statement_entry' }[]> {
       if (!ObjectId.isValid(positionId)) return [];
 
       const documents = await collections.applications
@@ -152,7 +164,10 @@ export async function createMongoInvestmentRepository(): Promise<InvestmentRepos
         })
         .toArray();
 
-      return documents.map((document) => document.entry_id.toHexString());
+      return documents.map((document) => ({
+        entryId: document.entry_id.toHexString(),
+        source: document.source ?? 'application',
+      }));
     },
 
     async deleteApplicationsForPosition(userId, positionId): Promise<void> {

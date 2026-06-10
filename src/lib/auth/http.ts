@@ -40,6 +40,10 @@ export function unauthorized(message: string): NextResponse {
   return NextResponse.json({ error: message }, { status: 401 });
 }
 
+export function notFound(message: string): NextResponse {
+  return NextResponse.json({ error: message }, { status: 404 });
+}
+
 export function conflict(message: string): NextResponse {
   return NextResponse.json({ error: message }, { status: 409 });
 }

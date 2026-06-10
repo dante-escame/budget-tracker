@@ -79,6 +79,12 @@ describe('addApplicationSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('defaults flow to outcome when omitted', () => {
+    const result = addApplicationSchema.safeParse({ value: 5_000, appliedAt: '2026-06-08' });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.flow).toBe('outcome');
+  });
 });
 
 describe('parseApplicationDate', () => {

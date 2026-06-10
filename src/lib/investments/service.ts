@@ -91,14 +91,16 @@ export function createInvestmentService(
       return repository.updatePosition(userId, id, input);
     },
 
-    /** Deletes a position and cascades: soft-deletes linked entries + removes applications. */
+    /** Deletes a position and cascades: soft-deletes owned entries + removes applications. */
     async deletePosition(userId: string, id: string): Promise<boolean> {
-      const entryIds = await repository.listApplicationEntryIdsForPosition(
+      const applicationEntries = await repository.listApplicationEntryIdsForPosition(
         userId,
         id
       );
       await Promise.all(
-        entryIds.map((entryId) => entryService.softDeleteEntry(userId, entryId))
+        applicationEntries
+          .filter((entry) => entry.source === 'application')
+          .map((entry) => entryService.softDeleteEntry(userId, entry.entryId))
       );
       await repository.deleteApplicationsForPosition(userId, id);
       return repository.softDeletePosition(userId, id);
@@ -122,13 +124,19 @@ export function createInvestmentService(
         buildInvestmentEntry(position, input)
       );
 
-      await repository.createApplication(userId, {
-        investmentId,
-        value: input.value,
-        flow: input.flow,
-        appliedAt: input.appliedAt,
-        entryId,
-      });
+      try {
+        await repository.createApplication(userId, {
+          investmentId,
+          value: input.value,
+          flow: input.flow,
+          appliedAt: input.appliedAt,
+          entryId,
+          source: 'application',
+        });
+      } catch (error) {
+        await entryService.softDeleteEntry(userId, entryId);
+        throw error;
+      }
 
       return true;
     },
@@ -152,18 +160,22 @@ export function createInvestmentService(
       await repository.createApplication(userId, {
         investmentId,
         value: entry.value,
+        flow: entry.flow ?? 'outcome',
         appliedAt: new Date(entry.occurredAt),
         entryId,
+        source: 'statement_entry',
       });
       return true;
     },
 
-    /** Removes an application and soft-deletes its linked statement entry. */
+    /** Removes an application. Only soft-deletes the linked entry when it was created by this application. */
     async deleteApplication(userId: string, appId: string): Promise<boolean> {
       const removed = await repository.deleteApplication(userId, appId);
       if (!removed) return false;
 
-      await entryService.softDeleteEntry(userId, removed.entryId);
+      if (removed.source === 'application') {
+        await entryService.softDeleteEntry(userId, removed.entryId);
+      }
       return true;
     },
   };

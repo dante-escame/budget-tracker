@@ -58,6 +58,7 @@ export function buildPortfolio(
       type: position.type,
       risk: position.risk,
       currentValue,
+      storedCurrentValue: position.currentValue,
       totalApplied,
       lastApplicationAt,
       sharePct,
