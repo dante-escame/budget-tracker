@@ -23,15 +23,16 @@ export namespace Investment {
     deleted_at: Date | null;
   }
 
-  // A single application (aporte) into a position. Each one mirrors a linked
-  // outcome entry in the `entries` collection (`entry_id`).
+  // A single application (aporte or return) into/from a position. Each one
+  // mirrors a linked entry in the `entries` collection (`entry_id`).
   export interface ApplicationDocument {
     _id?: ObjectId;
     user_id: ObjectId;
     investment_id: ObjectId;
     value: number; // centavos
+    flow: 'income' | 'outcome';
     applied_at: Date;
-    entry_id: ObjectId; // linked outcome entry
+    entry_id: ObjectId; // linked statement entry
     created_at: Date;
   }
 
@@ -59,6 +60,7 @@ export namespace Investment {
     // user can identify the transaction before assigning it to a position.
     entryDescription?: string;
     value: number; // centavos
+    flow: 'income' | 'outcome';
     appliedAt: string; // ISO date
     // 'application' = created via the investments form; 'statement_entry' = outcome
     // entry whose category was set to 'investment' in the statement view.

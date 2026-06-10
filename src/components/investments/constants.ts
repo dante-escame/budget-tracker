@@ -24,6 +24,27 @@ export const CATEGORY_COLOR: Record<Investment.Category, string> = {
   reits: '#9c27b0',
 };
 
+export const CHART_COLORS: string[] = [
+  '#4C72B0',
+  '#DD8452',
+  '#55A868',
+  '#C44E52',
+  '#8172B3',
+  '#937860',
+  '#DA8BC3',
+  '#8C8C8C',
+  '#CCB974',
+  '#64B5CD',
+  '#E377C2',
+  '#7F7F7F',
+  '#BCBD22',
+  '#17BECF',
+  '#AEC7E8',
+  '#FFBB78',
+  '#98DF8A',
+  '#F7B6D2',
+];
+
 export const RISK_LABELS: Record<Investment.Risk, string> = {
   low: 'Low',
   medium: 'Medium',

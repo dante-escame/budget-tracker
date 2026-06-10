@@ -191,7 +191,6 @@ export function InvestmentFormDialog({
 
           <TextField
             label="Current value"
-            type="number"
             value={form.currentValue}
             onChange={(event) =>
               setForm((prev) => ({ ...prev, currentValue: event.target.value }))

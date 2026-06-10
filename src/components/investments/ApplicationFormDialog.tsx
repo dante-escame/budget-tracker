@@ -12,9 +12,13 @@ import InputAdornment from '@mui/material/InputAdornment';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 
 import type { Investment } from '@/lib/investments';
 import { reaisToCentavos } from '@/components/investments/format';
+
+type Flow = 'income' | 'outcome';
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -28,13 +32,13 @@ export function ApplicationFormDialog({
   onSaved,
 }: {
   open: boolean;
-  // When provided, the position is fixed. When null, a selector is shown using `positions`.
   investment: Investment.PositionRecord | null;
   positions?: Investment.PositionRecord[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [selectedId, setSelectedId] = useState('');
+  const [flow, setFlow] = useState<Flow>('outcome');
   const [value, setValue] = useState('');
   const [appliedAt, setAppliedAt] = useState(today());
   const [pending, setPending] = useState(false);
@@ -63,7 +67,7 @@ export function ApplicationFormDialog({
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ value: centavos, appliedAt }),
+          body: JSON.stringify({ value: centavos, flow, appliedAt }),
         }
       );
 
@@ -83,17 +87,36 @@ export function ApplicationFormDialog({
     }
   }
 
+  const dialogTitle = flow === 'income' ? 'Add income' : 'Add application';
+
   return (
     <Dialog open={open} onClose={() => !pending && onClose()} fullWidth maxWidth="xs">
-      <DialogTitle>Add application</DialogTitle>
+      <DialogTitle>{dialogTitle}</DialogTitle>
       <DialogContent>
         <Stack spacing={2.5} sx={{ mt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
 
+          <ToggleButtonGroup
+            value={flow}
+            exclusive
+            onChange={(_, next: Flow | null) => next && setFlow(next)}
+            fullWidth
+            size="small"
+          >
+            <ToggleButton value="outcome" color="error">
+              Outcome
+            </ToggleButton>
+            <ToggleButton value="income" color="success">
+              Income
+            </ToggleButton>
+          </ToggleButtonGroup>
+
           {investment ? (
             <DialogContentText>
-              Applying to <strong>{investment.name}</strong>. This also records an
-              outcome in your statement.
+              {flow === 'income'
+                ? <>Investment income from <strong>{investment.name}</strong>. This also records an income in your statement.</>
+                : <>Applying to <strong>{investment.name}</strong>. This also records an outcome in your statement.</>
+              }
             </DialogContentText>
           ) : (
             <TextField
@@ -120,7 +143,6 @@ export function ApplicationFormDialog({
 
           <TextField
             label="Amount"
-            type="number"
             value={value}
             onChange={(event) => setValue(event.target.value)}
             slotProps={{

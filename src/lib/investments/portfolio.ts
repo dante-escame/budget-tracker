@@ -23,7 +23,9 @@ export function buildPortfolio(
       totalApplied: 0,
       lastApplicationAt: null,
     };
-    current.totalApplied += application.value;
+    if (!application.flow || application.flow === 'outcome') {
+      current.totalApplied += application.value;
+    }
     if (
       !current.lastApplicationAt ||
       application.appliedAt > current.lastApplicationAt

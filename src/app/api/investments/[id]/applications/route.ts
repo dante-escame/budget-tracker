@@ -23,6 +23,7 @@ export async function POST(
   const investmentService = await getInvestmentService();
   const added = await investmentService.addApplication(user.id, id, {
     value: parsed.data.value,
+    flow: parsed.data.flow,
     appliedAt: parseApplicationDate(parsed.data.appliedAt),
   });
   if (!added) return badRequest('Investment not found.');

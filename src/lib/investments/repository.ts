@@ -32,8 +32,9 @@ export interface UpdatePositionInput {
 export interface CreateApplicationInput {
   investmentId: string;
   value: number; // centavos
+  flow: 'income' | 'outcome';
   appliedAt: Date;
-  entryId: string; // linked outcome entry id
+  entryId: string; // linked statement entry id
 }
 
 export interface InvestmentRepository {

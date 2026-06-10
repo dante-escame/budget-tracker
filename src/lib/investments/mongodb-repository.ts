@@ -110,6 +110,7 @@ export async function createMongoInvestmentRepository(): Promise<InvestmentRepos
           investmentId,
           investmentName: nameById.get(investmentId) ?? 'Unknown',
           value: document.value,
+          flow: document.flow ?? ('outcome' as const),
           appliedAt: document.applied_at.toISOString(),
           source: 'application' as const,
         };
@@ -121,6 +122,7 @@ export async function createMongoInvestmentRepository(): Promise<InvestmentRepos
         user_id: parseObjectId(userId),
         investment_id: new ObjectId(input.investmentId),
         value: input.value,
+        flow: input.flow,
         applied_at: input.appliedAt,
         entry_id: new ObjectId(input.entryId),
         created_at: new Date(),

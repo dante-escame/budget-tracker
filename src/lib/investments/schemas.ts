@@ -35,6 +35,7 @@ export const updateInvestmentSchema = z
 
 export const addApplicationSchema = z.object({
   value: z.number().int().positive('Amount must be greater than zero.'),
+  flow: z.enum(['income', 'outcome']).default('outcome'),
   appliedAt: z
     .string()
     .regex(DATE_PATTERN, 'Date must be in YYYY-MM-DD format.')

@@ -30,22 +30,13 @@ import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import PlaylistAddRoundedIcon from '@mui/icons-material/PlaylistAddRounded';
-import {
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip as ChartTooltip,
-} from 'recharts';
-
 import type { Investment } from '@/lib/investments';
 import {
-  CATEGORY_COLOR,
   CATEGORY_LABELS,
   RISK_COLOR,
   RISK_LABELS,
 } from '@/components/investments/constants';
+import { InvestmentChartSlider } from '@/components/investments/InvestmentChartSlider';
 import {
   formatCurrency,
   formatDate,
@@ -86,18 +77,6 @@ export function InvestmentsView({
 
   const walletTotal = useMemo(
     () => positions.reduce((sum, position) => sum + position.currentValue, 0),
-    [positions]
-  );
-
-  const pieData = useMemo(
-    () =>
-      positions
-        .filter((position) => position.currentValue > 0)
-        .map((position) => ({
-          name: position.name,
-          value: position.currentValue,
-          category: position.category,
-        })),
     [positions]
   );
 
@@ -228,40 +207,7 @@ export function InvestmentsView({
             </Box>
           ) : (
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
-              <Box sx={{ width: { xs: '100%', md: 360 }, flexShrink: 0 }}>
-                {pieData.length === 0 ? (
-                  <Box sx={{ py: 6, textAlign: 'center' }}>
-                    <Typography color="text.secondary" variant="body2">
-                      Add an application or set a market value to see the
-                      distribution.
-                    </Typography>
-                  </Box>
-                ) : (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <PieChart>
-                      <Pie
-                        data={pieData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={100}
-                      >
-                        {pieData.map((entry) => (
-                          <Cell
-                            key={entry.name}
-                            fill={CATEGORY_COLOR[entry.category]}
-                          />
-                        ))}
-                      </Pie>
-                      <ChartTooltip
-                        formatter={(value) => formatCurrency(Number(value), 'BRL')}
-                      />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </Box>
+              <InvestmentChartSlider positions={positions} />
 
               <TableContainer sx={{ flex: 1 }}>
                 <Table size="small" aria-label="Investment positions">
@@ -411,6 +357,12 @@ export function InvestmentsView({
                         )}
                       </TableCell>
                       <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                        <Chip
+                          size="small"
+                          label={application.flow === 'income' ? 'Income' : 'Outcome'}
+                          color={application.flow === 'income' ? 'success' : 'default'}
+                          sx={{ mr: 1 }}
+                        />
                         {formatCurrency(application.value, 'BRL')}
                       </TableCell>
                       <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>

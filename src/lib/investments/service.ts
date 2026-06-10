@@ -25,6 +25,7 @@ export interface CreatePositionFields {
 
 export interface AddApplicationFields {
   value: number; // centavos
+  flow: 'income' | 'outcome';
   appliedAt: Date;
 }
 
@@ -58,6 +59,7 @@ export function createInvestmentService(
           investmentName: entry.merchant ?? entry.description,
           entryDescription: entry.description,
           value: entry.value,
+          flow: 'outcome' as const,
           appliedAt: entry.occurredAt,
           source: 'statement_entry' as const,
         }));
@@ -123,6 +125,7 @@ export function createInvestmentService(
       await repository.createApplication(userId, {
         investmentId,
         value: input.value,
+        flow: input.flow,
         appliedAt: input.appliedAt,
         entryId,
       });
@@ -170,7 +173,10 @@ function buildInvestmentEntry(
   position: PositionBase,
   input: AddApplicationFields
 ): ManualEntryInput {
-  const description = `Investment application - ${position.name}`;
+  const isIncome = input.flow === 'income';
+  const description = isIncome
+    ? `Investment return - ${position.name}`
+    : `Investment application - ${position.name}`;
   const shortDescription =
     description.length <= 80 ? description : `${description.slice(0, 79)}…`;
 
@@ -178,9 +184,9 @@ function buildInvestmentEntry(
     description,
     shortDescription,
     value: input.value,
-    flow: 'outcome',
+    flow: input.flow,
     type: 'other',
-    category: 'investment',
+    category: isIncome ? 'investment_return' : 'investment',
     currency: position.currency,
     occurredAt: input.appliedAt,
     competenceAt: toMonthStart(input.appliedAt),

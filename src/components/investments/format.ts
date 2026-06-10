@@ -14,9 +14,9 @@ export function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`;
 }
 
-/** Parses a reais amount (dot decimal, e.g. "1234.56") into integer centavos. */
+/** Parses a reais amount (accepts "," or "." as decimal separator) into integer centavos. */
 export function reaisToCentavos(value: string): number | null {
-  const trimmed = value.trim();
+  const trimmed = value.trim().replace(',', '.');
   if (trimmed === '') return null;
   const amount = Number(trimmed);
   if (!Number.isFinite(amount) || amount < 0) return null;
