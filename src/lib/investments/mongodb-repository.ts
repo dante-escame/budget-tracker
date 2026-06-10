@@ -112,7 +112,7 @@ export async function createMongoInvestmentRepository(): Promise<InvestmentRepos
           value: document.value,
           flow: document.flow ?? ('outcome' as const),
           appliedAt: document.applied_at.toISOString(),
-          source: 'application' as const,
+          source: document.source ?? 'application',
         };
       });
     },

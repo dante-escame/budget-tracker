@@ -138,6 +138,8 @@ export function InvestmentsView({
 
   async function handleDeleteApplication(application: Investment.ApplicationRecord) {
     if (!application.investmentId) return;
+    if (pending) return;
+    setPending(true);
     try {
       const response = await fetch(
         `/api/investments/${application.investmentId}/applications/${application.id}`,
@@ -152,6 +154,8 @@ export function InvestmentsView({
       router.refresh();
     } catch {
       setToast('Network error. Please try again.');
+    } finally {
+      setPending(false);
     }
   }
 
@@ -384,6 +388,7 @@ export function InvestmentsView({
                             <Tooltip title="Delete entry">
                               <IconButton
                                 size="small"
+                                disabled={pending}
                                 onClick={() => handleDeleteStatementEntry(application)}
                               >
                                 <DeleteOutlineRoundedIcon fontSize="small" />
@@ -394,6 +399,7 @@ export function InvestmentsView({
                           <Tooltip title="Delete application">
                             <IconButton
                               size="small"
+                              disabled={pending}
                               onClick={() => handleDeleteApplication(application)}
                             >
                               <DeleteOutlineRoundedIcon fontSize="small" />
