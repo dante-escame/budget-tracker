@@ -9,6 +9,8 @@ export interface PositionBase {
   type: string;
   risk: Investment.Risk;
   currentValue: number; // raw stored market value in centavos (may be 0)
+  coinSymbol?: string | null; // crypto only
+  quantity?: number | null; // crypto only
   currency: string;
 }
 
@@ -18,6 +20,8 @@ export interface CreatePositionInput {
   type: string;
   risk: Investment.Risk;
   currentValue: number; // centavos
+  coinSymbol?: string | null;
+  quantity?: number | null;
   currency: string;
 }
 
@@ -27,6 +31,8 @@ export interface UpdatePositionInput {
   type?: string;
   risk?: Investment.Risk;
   currentValue?: number; // centavos
+  coinSymbol?: string | null;
+  quantity?: number | null;
 }
 
 export interface CreateApplicationInput {
@@ -46,6 +52,12 @@ export interface InvestmentRepository {
   getPosition(userId: string, id: string): Promise<PositionBase | null>;
 
   createPosition(userId: string, input: CreatePositionInput): Promise<PositionBase>;
+
+  /** Inserts several positions in one batch (validated upstream). */
+  createPositions(
+    userId: string,
+    inputs: CreatePositionInput[]
+  ): Promise<PositionBase[]>;
 
   updatePosition(
     userId: string,

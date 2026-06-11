@@ -41,8 +41,10 @@ import {
   formatCurrency,
   formatDate,
   formatPercent,
+  formatTotalApplied,
 } from '@/components/investments/format';
 import { InvestmentFormDialog } from '@/components/investments/InvestmentFormDialog';
+import { InvestmentBulkFormDialog } from '@/components/investments/InvestmentBulkFormDialog';
 import { ApplicationFormDialog } from '@/components/investments/ApplicationFormDialog';
 import { AssignEntryDialog } from '@/components/investments/AssignEntryDialog';
 
@@ -59,6 +61,8 @@ export function InvestmentsView({
   const [formOpen, setFormOpen] = useState(false);
   const [formKey, setFormKey] = useState(0);
   const [editing, setEditing] = useState<Investment.PositionRecord | undefined>();
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkKey, setBulkKey] = useState(0);
   const [appOpen, setAppOpen] = useState(false);
   const [appKey, setAppKey] = useState(0);
   const [appTarget, setAppTarget] = useState<Investment.PositionRecord | null>(null);
@@ -91,9 +95,8 @@ export function InvestmentsView({
   );
 
   function openCreate() {
-    setEditing(undefined);
-    setFormKey((key) => key + 1);
-    setFormOpen(true);
+    setBulkKey((key) => key + 1);
+    setBulkOpen(true);
   }
 
   function openEdit(position: Investment.PositionRecord) {
@@ -257,7 +260,7 @@ export function InvestmentsView({
                           {formatPercent(position.sharePct)}
                         </TableCell>
                         <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                          {formatCurrency(position.totalApplied, position.currency)}
+                          {formatTotalApplied(position)}
                         </TableCell>
                         <TableCell>
                           <Chip
@@ -427,6 +430,16 @@ export function InvestmentsView({
           />
         </Paper>
       </Stack>
+
+      <InvestmentBulkFormDialog
+        key={`bulk-${bulkKey}`}
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        onSaved={(count) => {
+          setToast(count === 1 ? 'Investment added.' : `${count} investments added.`);
+          router.refresh();
+        }}
+      />
 
       <InvestmentFormDialog
         key={`form-${formKey}`}

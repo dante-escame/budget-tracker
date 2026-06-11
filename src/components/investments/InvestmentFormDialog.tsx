@@ -15,12 +15,22 @@ import TextField from '@mui/material/TextField';
 
 import type { Investment } from '@/lib/investments';
 import {
+  CRYPTO_COINS,
+  CRYPTO_COIN_SYMBOLS,
+  CRYPTO_QUANTITY_DECIMALS,
+} from '@/lib/investments/crypto-coins';
+import { DOLLAR_QUANTITY_DECIMALS } from '@/lib/investments/dollar';
+import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
   RISK_LABELS,
   TYPE_SUGGESTIONS,
 } from '@/components/investments/constants';
-import { reaisToCentavos } from '@/components/investments/format';
+import {
+  formatCurrency,
+  parseCryptoQuantity,
+  reaisToCentavos,
+} from '@/components/investments/format';
 
 const RISKS: Investment.Risk[] = ['low', 'medium', 'high'];
 
@@ -29,7 +39,9 @@ interface FormState {
   category: Investment.Category;
   type: string;
   risk: Investment.Risk;
-  currentValue: string; // reais
+  currentValue: string; // reais (non-crypto)
+  coinSymbol: string; // crypto
+  quantity: string; // crypto
 }
 
 function initialState(investment?: Investment.PositionRecord): FormState {
@@ -42,6 +54,8 @@ function initialState(investment?: Investment.PositionRecord): FormState {
       currentValue: investment.storedCurrentValue > 0
         ? (investment.storedCurrentValue / 100).toString()
         : '',
+      coinSymbol: investment.coinSymbol ?? '',
+      quantity: investment.quantity != null ? investment.quantity.toString() : '',
     };
   }
   return {
@@ -50,6 +64,8 @@ function initialState(investment?: Investment.PositionRecord): FormState {
     type: '',
     risk: 'low',
     currentValue: '',
+    coinSymbol: '',
+    quantity: '',
   };
 }
 
@@ -70,6 +86,9 @@ export function InvestmentFormDialog({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isCrypto = form.category === 'crypto';
+  const isDollar = form.category === 'dollar';
+
   async function handleSubmit() {
     if (form.name.trim() === '') {
       setError('Name is required.');
@@ -80,22 +99,56 @@ export function InvestmentFormDialog({
       return;
     }
 
-    const currentValue = reaisToCentavos(form.currentValue);
-    if (form.currentValue.trim() !== '' && currentValue === null) {
-      setError('Current value must be a valid amount.');
-      return;
-    }
-
-    setPending(true);
-    setError(null);
-
     const body: Record<string, unknown> = {
       name: form.name.trim(),
       category: form.category,
       type: form.type.trim(),
       risk: form.risk,
     };
-    if (currentValue !== null) body.currentValue = currentValue;
+
+    if (isCrypto) {
+      if (!form.coinSymbol) {
+        setError('Select a coin for crypto positions.');
+        return;
+      }
+      const quantity = parseCryptoQuantity(form.quantity, CRYPTO_QUANTITY_DECIMALS);
+      if (quantity === null) {
+        setError(`Enter a valid quantity (max ${CRYPTO_QUANTITY_DECIMALS} decimals).`);
+        return;
+      }
+      body.coinSymbol = form.coinSymbol;
+      body.quantity = quantity;
+      // Crypto value is derived from the live quote; reset any stored manual one.
+      if (investment) body.currentValue = 0;
+    } else if (isDollar) {
+      const quantity = parseCryptoQuantity(form.quantity, DOLLAR_QUANTITY_DECIMALS);
+      if (quantity === null) {
+        setError(`Enter a valid amount (max ${DOLLAR_QUANTITY_DECIMALS} decimals).`);
+        return;
+      }
+      body.quantity = quantity;
+      // Dollar value is derived from the live USD→BRL quote; never a coin or a
+      // stored manual value.
+      if (investment) {
+        body.coinSymbol = null;
+        body.currentValue = 0;
+      }
+    } else {
+      const currentValue = reaisToCentavos(form.currentValue);
+      if (form.currentValue.trim() !== '' && currentValue === null) {
+        setError('Current value must be a valid amount.');
+        return;
+      }
+      if (currentValue !== null) body.currentValue = currentValue;
+      // Clear any crypto fields when editing a position into another category.
+      if (investment) {
+        body.coinSymbol = null;
+        body.quantity = null;
+      }
+    }
+
+    setPending(true);
+    setError(null);
 
     const url = investment ? `/api/investments/${investment.id}` : '/api/investments';
 
@@ -191,20 +244,87 @@ export function InvestmentFormDialog({
             ))}
           </TextField>
 
-          <TextField
-            label="Current value"
-            value={form.currentValue}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, currentValue: event.target.value }))
-            }
-            helperText="Optional market value. Defaults to the total applied until set."
-            slotProps={{
-              input: {
-                startAdornment: <InputAdornment position="start">R$</InputAdornment>,
-              },
-            }}
-            fullWidth
-          />
+          {isCrypto ? (
+            <>
+              <TextField
+                select
+                label="Coin"
+                value={form.coinSymbol}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, coinSymbol: event.target.value }))
+                }
+                fullWidth
+              >
+                {CRYPTO_COIN_SYMBOLS.map((symbol) => (
+                  <MenuItem key={symbol} value={symbol}>
+                    {symbol} · {CRYPTO_COINS[symbol].label}
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              <TextField
+                label="Quantity"
+                value={form.quantity}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, quantity: event.target.value }))
+                }
+                helperText={`Amount held (up to ${CRYPTO_QUANTITY_DECIMALS} decimals). Value is computed from the live BRL quote.`}
+                fullWidth
+              />
+
+              {investment && (
+                <TextField
+                  label="Current value (live)"
+                  value={formatCurrency(investment.currentValue, investment.currency)}
+                  helperText="Computed from quantity × the latest BRL price."
+                  slotProps={{ input: { readOnly: true } }}
+                  fullWidth
+                />
+              )}
+            </>
+          ) : isDollar ? (
+            <>
+              <TextField
+                label="Amount"
+                value={form.quantity}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, quantity: event.target.value }))
+                }
+                helperText={`Dollars held (up to ${DOLLAR_QUANTITY_DECIMALS} decimals). Value is computed from the live USD→BRL quote.`}
+                slotProps={{
+                  input: {
+                    startAdornment: <InputAdornment position="start">US$</InputAdornment>,
+                  },
+                }}
+                fullWidth
+              />
+
+              {investment && (
+                <TextField
+                  label="Current value (live)"
+                  value={formatCurrency(investment.currentValue, investment.currency)}
+                  helperText="Computed from amount × the latest USD→BRL rate."
+                  slotProps={{ input: { readOnly: true } }}
+                  fullWidth
+                />
+              )}
+            </>
+          ) : (
+            <TextField
+              label="Current value"
+              value={form.currentValue}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, currentValue: event.target.value }))
+              }
+              helperText="Optional market value. Defaults to the total applied until set."
+              slotProps={{
+                input: {
+                  startAdornment: <InputAdornment position="start">R$</InputAdornment>,
+                },
+              }}
+              fullWidth
+            />
+          )}
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>

@@ -35,22 +35,24 @@ export async function createMongoInvestmentRepository(): Promise<InvestmentRepos
     },
 
     async createPosition(userId, input): Promise<PositionBase> {
-      const now = new Date();
-      const document: Investment.PositionDocument = {
-        user_id: parseObjectId(userId),
-        name: input.name,
-        category: input.category,
-        type: input.type,
-        risk: input.risk,
-        current_value: input.currentValue,
-        currency: input.currency,
-        created_at: now,
-        updated_at: now,
-        deleted_at: null,
-      };
-
+      const document = buildPositionDocument(parseObjectId(userId), input);
       const result = await collections.positions.insertOne(document);
       return mapPositionBase({ ...document, _id: result.insertedId });
+    },
+
+    async createPositions(userId, inputs): Promise<PositionBase[]> {
+      const userObjectId = parseObjectId(userId);
+      const documents = inputs.map((input) =>
+        buildPositionDocument(userObjectId, input)
+      );
+
+      const result = await collections.positions.insertMany(documents, {
+        ordered: true,
+      });
+
+      return documents.map((document, index) =>
+        mapPositionBase({ ...document, _id: result.insertedIds[index] })
+      );
     },
 
     async updatePosition(userId, id, input): Promise<PositionBase | null> {
@@ -64,6 +66,8 @@ export async function createMongoInvestmentRepository(): Promise<InvestmentRepos
       if (input.type !== undefined) update.type = input.type;
       if (input.risk !== undefined) update.risk = input.risk;
       if (input.currentValue !== undefined) update.current_value = input.currentValue;
+      if (input.coinSymbol !== undefined) update.coin_symbol = input.coinSymbol;
+      if (input.quantity !== undefined) update.quantity = input.quantity;
 
       const document = await collections.positions.findOneAndUpdate(
         { _id: new ObjectId(id), user_id: parseObjectId(userId), deleted_at: null },
@@ -188,6 +192,36 @@ export async function createMongoInvestmentRepository(): Promise<InvestmentRepos
   };
 }
 
+function buildPositionDocument(
+  userId: ObjectId,
+  input: {
+    name: string;
+    category: Investment.Category;
+    type: string;
+    risk: Investment.Risk;
+    currentValue: number;
+    coinSymbol?: string | null;
+    quantity?: number | null;
+    currency: string;
+  }
+): Investment.PositionDocument {
+  const now = new Date();
+  return {
+    user_id: userId,
+    name: input.name,
+    category: input.category,
+    type: input.type,
+    risk: input.risk,
+    current_value: input.currentValue,
+    coin_symbol: input.coinSymbol ?? null,
+    quantity: input.quantity ?? null,
+    currency: input.currency,
+    created_at: now,
+    updated_at: now,
+    deleted_at: null,
+  };
+}
+
 function mapPositionBase(
   document: WithId<Investment.PositionDocument>
 ): PositionBase {
@@ -198,6 +232,8 @@ function mapPositionBase(
     type: document.type,
     risk: document.risk,
     currentValue: document.current_value,
+    coinSymbol: document.coin_symbol ?? null,
+    quantity: document.quantity ?? null,
     currency: document.currency,
   };
 }

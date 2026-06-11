@@ -5,6 +5,7 @@ import type { Investment } from '@/lib/investments';
 export const CATEGORY_LABELS: Record<Investment.Category, string> = {
   fixed_income: 'Fixed Income',
   crypto: 'Crypto',
+  dollar: 'Dollar',
   stocks: 'Stocks',
   reits: 'REITs',
 };
@@ -12,6 +13,7 @@ export const CATEGORY_LABELS: Record<Investment.Category, string> = {
 export const CATEGORY_ORDER: Investment.Category[] = [
   'fixed_income',
   'crypto',
+  'dollar',
   'stocks',
   'reits',
 ];
@@ -20,6 +22,7 @@ export const CATEGORY_ORDER: Investment.Category[] = [
 export const CATEGORY_COLOR: Record<Investment.Category, string> = {
   fixed_income: '#2e7d32',
   crypto: '#ed6c02',
+  dollar: '#00897b',
   stocks: '#1976d2',
   reits: '#9c27b0',
 };
@@ -66,6 +69,7 @@ export const RISK_COLOR: Record<
 export const TYPE_SUGGESTIONS: Record<Investment.Category, string[]> = {
   fixed_income: ['Selic', '% CDI', 'Prefixado'],
   crypto: ['Stable Coin', 'Meme Coin', 'Bitcoin', 'Altcoin'],
+  dollar: ['Cash', 'Savings', 'Wise', 'Broker'],
   stocks: ['Banking', 'Electricity', 'Telephony', 'Retail', 'Commodities', 'Technology'],
   reits: ['Logistics', 'Shopping', 'Corporate', 'Paper', 'Hybrid'],
 };

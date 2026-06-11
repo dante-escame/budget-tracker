@@ -1,7 +1,12 @@
 import type { ObjectId } from 'mongodb';
 
 export namespace Investment {
-  export type Category = 'fixed_income' | 'crypto' | 'stocks' | 'reits';
+  export type Category =
+    | 'fixed_income'
+    | 'crypto'
+    | 'dollar'
+    | 'stocks'
+    | 'reits';
 
   // Three-level risk, rendered green / yellow / red in the UI.
   export type Risk = 'low' | 'medium' | 'high';
@@ -17,6 +22,12 @@ export namespace Investment {
     type: string; // free-form, category-dependent (Selic, Banking, Stable Coin…)
     risk: Risk;
     current_value: number; // centavos; 0 until the user sets a market value
+    // For crypto positions the value is derived from a live quote: `coin_symbol`
+    // (e.g. 'BTC') × `quantity` × daily BRL price. Dollar positions reuse
+    // `quantity` (held USD) × the live USD→BRL rate, with no `coin_symbol`.
+    // Null/absent for other assets.
+    coin_symbol?: string | null;
+    quantity?: number | null;
     currency: string; // ISO 4217, e.g. 'BRL'
     created_at: Date;
     updated_at: Date;
@@ -47,6 +58,8 @@ export namespace Investment {
     risk: Risk;
     currentValue: number; // centavos (market value, or total applied fallback)
     storedCurrentValue: number; // raw stored market value — 0 means "not explicitly set"
+    coinSymbol?: string | null; // crypto only — selected coin (e.g. 'BTC')
+    quantity?: number | null; // crypto only — amount held
     totalApplied: number; // centavos, sum of applications
     lastApplicationAt: string | null; // ISO date
     sharePct: number; // 0..100 of wallet by currentValue
