@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { B3_TICKER_PATTERN } from '@/lib/investments/b3-stocks';
 import {
   CRYPTO_COIN_SYMBOLS,
   CRYPTO_QUANTITY_DECIMALS,
@@ -21,6 +22,14 @@ const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const coinSymbolSchema = z.enum(
   CRYPTO_COIN_SYMBOLS as [string, ...string[]]
 );
+
+// Any well-formed B3 ticker is accepted (not just the curated list) so positions
+// can track the full B3 universe via the live provider search. The price fetcher
+// degrades gracefully for tickers the provider doesn't recognise.
+const tickerSymbolSchema = z
+  .string()
+  .trim()
+  .regex(B3_TICKER_PATTERN, 'Enter a valid B3 ticker (e.g. PETR4).');
 
 const quantitySchema = z
   .number()
@@ -70,20 +79,52 @@ const dollarFieldsRefinement = (
   }
 };
 
+// Stock and FII positions are valued from a live B3 quote: they require a
+// `tickerSymbol` (the B3 ticker) and a whole-share `quantity`, and ignore both
+// `coinSymbol` and `currentValue`.
+const b3FieldsRefinement = (
+  value: { category: string; tickerSymbol?: unknown; quantity?: unknown },
+  ctx: z.RefinementCtx
+) => {
+  if (value.category !== 'stocks' && value.category !== 'reits') return;
+  if (value.tickerSymbol === undefined || value.tickerSymbol === null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['tickerSymbol'],
+      message: 'Select a ticker for stock and FII positions.',
+    });
+  }
+  if (value.quantity === undefined || value.quantity === null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['quantity'],
+      message: 'Quantity is required for stock and FII positions.',
+    });
+  } else if (typeof value.quantity === 'number' && !Number.isInteger(value.quantity)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['quantity'],
+      message: 'Quantity must be a whole number of shares.',
+    });
+  }
+};
+
 export const createInvestmentSchema = z
   .object({
     name: z.string().trim().min(1, 'Name is required.').max(120),
     category: z.enum(INVESTMENT_CATEGORIES),
     type: z.string().trim().min(1, 'Type is required.').max(80),
     risk: z.enum(INVESTMENT_RISKS),
-    // Optional initial market value, in centavos (non-crypto only).
+    // Optional initial market value, in centavos (manual categories only).
     currentValue: z.number().int().min(0).optional(),
     coinSymbol: coinSymbolSchema.optional(),
+    tickerSymbol: tickerSymbolSchema.optional(),
     quantity: quantitySchema.optional(),
   })
   .superRefine((value, ctx) => {
     cryptoFieldsRefinement(value, ctx);
     dollarFieldsRefinement(value, ctx);
+    b3FieldsRefinement(value, ctx);
   });
 
 // Saving several positions in one atomic request (the bulk add form).
@@ -99,8 +140,9 @@ export const updateInvestmentSchema = z
     type: z.string().trim().min(1).max(80).optional(),
     risk: z.enum(INVESTMENT_RISKS).optional(),
     currentValue: z.number().int().min(0).optional(),
-    // Nullable so switching a position away from crypto can clear them.
+    // Nullable so switching a position away from crypto/stocks can clear them.
     coinSymbol: coinSymbolSchema.nullable().optional(),
+    tickerSymbol: tickerSymbolSchema.nullable().optional(),
     quantity: quantitySchema.nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {

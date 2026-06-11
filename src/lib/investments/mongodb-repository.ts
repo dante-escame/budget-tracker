@@ -67,6 +67,7 @@ export async function createMongoInvestmentRepository(): Promise<InvestmentRepos
       if (input.risk !== undefined) update.risk = input.risk;
       if (input.currentValue !== undefined) update.current_value = input.currentValue;
       if (input.coinSymbol !== undefined) update.coin_symbol = input.coinSymbol;
+      if (input.tickerSymbol !== undefined) update.ticker_symbol = input.tickerSymbol;
       if (input.quantity !== undefined) update.quantity = input.quantity;
 
       const document = await collections.positions.findOneAndUpdate(
@@ -201,6 +202,7 @@ function buildPositionDocument(
     risk: Investment.Risk;
     currentValue: number;
     coinSymbol?: string | null;
+    tickerSymbol?: string | null;
     quantity?: number | null;
     currency: string;
   }
@@ -214,6 +216,7 @@ function buildPositionDocument(
     risk: input.risk,
     current_value: input.currentValue,
     coin_symbol: input.coinSymbol ?? null,
+    ticker_symbol: input.tickerSymbol ?? null,
     quantity: input.quantity ?? null,
     currency: input.currency,
     created_at: now,
@@ -233,6 +236,7 @@ function mapPositionBase(
     risk: document.risk,
     currentValue: document.current_value,
     coinSymbol: document.coin_symbol ?? null,
+    tickerSymbol: document.ticker_symbol ?? null,
     quantity: document.quantity ?? null,
     currency: document.currency,
   };

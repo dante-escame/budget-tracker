@@ -9,9 +9,10 @@ export function formatCurrency(centavos: number, currency: string): string {
 
 /**
  * The "Total Applied" cell. Quote-derived assets show the real holding in their
- * own unit — crypto as `quantity + symbol` (e.g. "0,5 BTC") and dollar as a USD
- * amount (e.g. "US$ 100,00") — since that's what the user actually entered.
- * Every other category keeps the BRL sum of its applications.
+ * own unit — crypto as `quantity + symbol` (e.g. "0,5 BTC"), dollar as a USD
+ * amount (e.g. "US$ 100,00") and stocks/FIIs as `shares + ticker` (e.g.
+ * "100 PETR4") — since that's what the user actually entered. Every other
+ * category keeps the BRL sum of its applications.
  */
 export function formatTotalApplied(position: Investment.PositionRecord): string {
   if (position.category === 'dollar' && position.quantity != null) {
@@ -26,6 +27,16 @@ export function formatTotalApplied(position: Investment.PositionRecord): string 
       maximumFractionDigits: 8,
     });
     return `${amount} ${position.coinSymbol}`;
+  }
+  if (
+    (position.category === 'stocks' || position.category === 'reits') &&
+    position.tickerSymbol &&
+    position.quantity != null
+  ) {
+    const amount = position.quantity.toLocaleString('pt-BR', {
+      maximumFractionDigits: 0,
+    });
+    return `${amount} ${position.tickerSymbol}`;
   }
   return formatCurrency(position.totalApplied, position.currency);
 }

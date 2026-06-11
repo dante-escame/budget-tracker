@@ -119,6 +119,88 @@ describe('createInvestmentSchema — dollar', () => {
   });
 });
 
+describe('createInvestmentSchema — stocks & FIIs', () => {
+  const stock = {
+    name: 'Petrobras',
+    category: 'stocks' as const,
+    type: 'Energy',
+    risk: 'medium' as const,
+  };
+  const fii = {
+    name: 'Maxi Renda',
+    category: 'reits' as const,
+    type: 'Hybrid',
+    risk: 'low' as const,
+  };
+
+  it('accepts a stock position with ticker + quantity', () => {
+    const result = createInvestmentSchema.safeParse({
+      ...stock,
+      tickerSymbol: 'PETR4',
+      quantity: 100,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts a FII position with ticker + quantity', () => {
+    const result = createInvestmentSchema.safeParse({
+      ...fii,
+      tickerSymbol: 'MXRF11',
+      quantity: 50,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a stock position without a ticker', () => {
+    const result = createInvestmentSchema.safeParse({ ...stock, quantity: 10 });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a stock position without a quantity', () => {
+    const result = createInvestmentSchema.safeParse({
+      ...stock,
+      tickerSymbol: 'PETR4',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts an uncurated but well-formed ticker (live provider search)', () => {
+    const result = createInvestmentSchema.safeParse({
+      ...stock,
+      tickerSymbol: 'ALUP11',
+      quantity: 10,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a malformed ticker', () => {
+    const result = createInvestmentSchema.safeParse({
+      ...stock,
+      tickerSymbol: 'not-a-ticker',
+      quantity: 10,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a fractional share quantity', () => {
+    const result = createInvestmentSchema.safeParse({
+      ...stock,
+      tickerSymbol: 'PETR4',
+      quantity: 10.5,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a non-positive quantity', () => {
+    const result = createInvestmentSchema.safeParse({
+      ...stock,
+      tickerSymbol: 'PETR4',
+      quantity: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe('bulkCreateInvestmentSchema', () => {
   const fixed = {
     name: 'Tesouro Selic',

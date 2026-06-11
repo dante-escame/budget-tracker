@@ -25,6 +25,8 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 
 import type { Investment } from '@/lib/investments';
+import { B3_QUANTITY_DECIMALS } from '@/lib/investments/b3-stocks';
+import { B3TickerAutocomplete } from '@/components/investments/B3TickerAutocomplete';
 import {
   CRYPTO_COINS,
   CRYPTO_COIN_SYMBOLS,
@@ -46,9 +48,10 @@ interface RowState {
   category: Investment.Category;
   type: string;
   risk: Investment.Risk;
-  currentValue: string; // reais (non-crypto)
+  currentValue: string; // reais (manual categories)
   coinSymbol: string; // crypto
-  quantity: string; // crypto
+  tickerSymbol: string; // stocks/reits
+  quantity: string; // crypto/dollar/stocks/reits
   error: string | null;
 }
 
@@ -63,6 +66,7 @@ function emptyRow(seed?: Pick<RowState, 'category' | 'type' | 'risk'>): RowState
     risk: seed?.risk ?? 'low',
     currentValue: '',
     coinSymbol: '',
+    tickerSymbol: '',
     quantity: '',
     error: null,
   };
@@ -107,6 +111,24 @@ function validateRow(row: RowState): RowResult {
         category: row.category,
         type: row.type.trim(),
         risk: row.risk,
+        quantity,
+      },
+    };
+  }
+
+  if (row.category === 'stocks' || row.category === 'reits') {
+    if (!row.tickerSymbol) return { error: 'Select a ticker.' };
+    const quantity = parseCryptoQuantity(row.quantity, B3_QUANTITY_DECIMALS);
+    if (quantity === null) {
+      return { error: 'Enter a valid quantity (whole number of shares).' };
+    }
+    return {
+      payload: {
+        name: row.name.trim(),
+        category: row.category,
+        type: row.type.trim(),
+        risk: row.risk,
+        tickerSymbol: row.tickerSymbol,
         quantity,
       },
     };
@@ -230,6 +252,8 @@ export function InvestmentBulkFormDialog({
                 {rows.map((row, index) => {
                   const isCrypto = row.category === 'crypto';
                   const isDollar = row.category === 'dollar';
+                  const isStock =
+                    row.category === 'stocks' || row.category === 'reits';
                   return (
                     <TableRow key={row.key} hover sx={{ verticalAlign: 'top' }}>
                       <TableCell>
@@ -249,6 +273,7 @@ export function InvestmentBulkFormDialog({
                             patchRow(index, {
                               category: value as Investment.Category,
                               type: '',
+                              tickerSymbol: '',
                             })
                           }
                         >
@@ -313,6 +338,32 @@ export function InvestmentBulkFormDialog({
                             startAdornment="US$"
                             placeholder="Amount"
                           />
+                        ) : isStock ? (
+                          <Stack direction="row" spacing={1}>
+                            <B3TickerAutocomplete
+                              value={row.tickerSymbol}
+                              onChange={(ticker, kind) =>
+                                patchRow(index, {
+                                  tickerSymbol: ticker,
+                                  // Keep the category aligned with the ticker's
+                                  // kind when the provider reports it.
+                                  category: kind
+                                    ? kind === 'fii'
+                                      ? 'reits'
+                                      : 'stocks'
+                                    : row.category,
+                                })
+                              }
+                              placeholder="Ticker"
+                              variant="standard"
+                              sx={{ minWidth: 150 }}
+                            />
+                            <CellTextField
+                              value={row.quantity}
+                              onChange={(value) => patchRow(index, { quantity: value })}
+                              placeholder="Shares"
+                            />
+                          </Stack>
                         ) : (
                           <CellTextField
                             value={row.currentValue}
@@ -348,8 +399,9 @@ export function InvestmentBulkFormDialog({
           </TableContainer>
 
           <Typography variant="caption" color="text.secondary">
-            Crypto positions are valued from a live BRL quote (coin × quantity)
-            and dollar positions from the live USD→BRL rate (amount × rate). Other
+            Crypto positions are valued from a live BRL quote (coin × quantity),
+            dollar positions from the live USD→BRL rate (amount × rate), and
+            stock/FII positions from the live B3 price (shares × price). Other
             categories use the optional manual value, which defaults to the total
             applied until set.
           </Typography>

@@ -25,8 +25,11 @@ export namespace Investment {
     // For crypto positions the value is derived from a live quote: `coin_symbol`
     // (e.g. 'BTC') × `quantity` × daily BRL price. Dollar positions reuse
     // `quantity` (held USD) × the live USD→BRL rate, with no `coin_symbol`.
-    // Null/absent for other assets.
+    // Stock/FII positions reuse `quantity` (shares held) × the live B3 price and
+    // store the B3 ticker (e.g. 'PETR4') in `ticker_symbol`. Null/absent for
+    // other assets.
     coin_symbol?: string | null;
+    ticker_symbol?: string | null;
     quantity?: number | null;
     currency: string; // ISO 4217, e.g. 'BRL'
     created_at: Date;
@@ -59,7 +62,8 @@ export namespace Investment {
     currentValue: number; // centavos (market value, or total applied fallback)
     storedCurrentValue: number; // raw stored market value — 0 means "not explicitly set"
     coinSymbol?: string | null; // crypto only — selected coin (e.g. 'BTC')
-    quantity?: number | null; // crypto only — amount held
+    tickerSymbol?: string | null; // stocks/reits only — B3 ticker (e.g. 'PETR4')
+    quantity?: number | null; // crypto/dollar/stocks/reits — amount held
     totalApplied: number; // centavos, sum of applications
     lastApplicationAt: string | null; // ISO date
     sharePct: number; // 0..100 of wallet by currentValue

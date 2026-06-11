@@ -14,6 +14,8 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 
 import type { Investment } from '@/lib/investments';
+import { B3_QUANTITY_DECIMALS } from '@/lib/investments/b3-stocks';
+import { B3TickerAutocomplete } from '@/components/investments/B3TickerAutocomplete';
 import {
   CRYPTO_COINS,
   CRYPTO_COIN_SYMBOLS,
@@ -39,9 +41,10 @@ interface FormState {
   category: Investment.Category;
   type: string;
   risk: Investment.Risk;
-  currentValue: string; // reais (non-crypto)
+  currentValue: string; // reais (manual categories)
   coinSymbol: string; // crypto
-  quantity: string; // crypto
+  tickerSymbol: string; // stocks/reits
+  quantity: string; // crypto/dollar/stocks/reits
 }
 
 function initialState(investment?: Investment.PositionRecord): FormState {
@@ -55,6 +58,7 @@ function initialState(investment?: Investment.PositionRecord): FormState {
         ? (investment.storedCurrentValue / 100).toString()
         : '',
       coinSymbol: investment.coinSymbol ?? '',
+      tickerSymbol: investment.tickerSymbol ?? '',
       quantity: investment.quantity != null ? investment.quantity.toString() : '',
     };
   }
@@ -65,6 +69,7 @@ function initialState(investment?: Investment.PositionRecord): FormState {
     risk: 'low',
     currentValue: '',
     coinSymbol: '',
+    tickerSymbol: '',
     quantity: '',
   };
 }
@@ -88,6 +93,7 @@ export function InvestmentFormDialog({
 
   const isCrypto = form.category === 'crypto';
   const isDollar = form.category === 'dollar';
+  const isStock = form.category === 'stocks' || form.category === 'reits';
 
   async function handleSubmit() {
     if (form.name.trim() === '') {
@@ -119,7 +125,10 @@ export function InvestmentFormDialog({
       body.coinSymbol = form.coinSymbol;
       body.quantity = quantity;
       // Crypto value is derived from the live quote; reset any stored manual one.
-      if (investment) body.currentValue = 0;
+      if (investment) {
+        body.tickerSymbol = null;
+        body.currentValue = 0;
+      }
     } else if (isDollar) {
       const quantity = parseCryptoQuantity(form.quantity, DOLLAR_QUANTITY_DECIMALS);
       if (quantity === null) {
@@ -127,7 +136,26 @@ export function InvestmentFormDialog({
         return;
       }
       body.quantity = quantity;
-      // Dollar value is derived from the live USD→BRL quote; never a coin or a
+      // Dollar value is derived from the live USD→BRL quote; never a coin/ticker
+      // or a stored manual value.
+      if (investment) {
+        body.coinSymbol = null;
+        body.tickerSymbol = null;
+        body.currentValue = 0;
+      }
+    } else if (isStock) {
+      if (!form.tickerSymbol) {
+        setError('Select a ticker for stock and FII positions.');
+        return;
+      }
+      const quantity = parseCryptoQuantity(form.quantity, B3_QUANTITY_DECIMALS);
+      if (quantity === null) {
+        setError('Enter a valid quantity (whole number of shares).');
+        return;
+      }
+      body.tickerSymbol = form.tickerSymbol;
+      body.quantity = quantity;
+      // Stock/FII value is derived from the live B3 quote; never a coin or a
       // stored manual value.
       if (investment) {
         body.coinSymbol = null;
@@ -140,9 +168,10 @@ export function InvestmentFormDialog({
         return;
       }
       if (currentValue !== null) body.currentValue = currentValue;
-      // Clear any crypto fields when editing a position into another category.
+      // Clear any quote-derived fields when editing a position into a manual category.
       if (investment) {
         body.coinSymbol = null;
+        body.tickerSymbol = null;
         body.quantity = null;
       }
     }
@@ -201,6 +230,8 @@ export function InvestmentFormDialog({
                 ...prev,
                 category: event.target.value as Investment.Category,
                 type: '',
+                // Ticker options differ per category (stocks vs FIIs), so reset it.
+                tickerSymbol: '',
               }))
             }
             fullWidth
@@ -304,6 +335,49 @@ export function InvestmentFormDialog({
                   label="Current value (live)"
                   value={formatCurrency(investment.currentValue, investment.currency)}
                   helperText="Computed from amount × the latest USD→BRL rate."
+                  slotProps={{ input: { readOnly: true } }}
+                  fullWidth
+                />
+              )}
+            </>
+          ) : isStock ? (
+            <>
+              <B3TickerAutocomplete
+                value={form.tickerSymbol}
+                onChange={(ticker, kind) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    tickerSymbol: ticker,
+                    // When the provider tells us the kind, keep the category in
+                    // sync (FII → reits, stock → stocks); otherwise leave the
+                    // user's choice untouched.
+                    category: kind
+                      ? kind === 'fii'
+                        ? 'reits'
+                        : 'stocks'
+                      : prev.category,
+                  }))
+                }
+                label="Ticker"
+                helperText="Search by ticker (PETR4, ALUP11) or company name."
+                fullWidth
+              />
+
+              <TextField
+                label="Quantity"
+                value={form.quantity}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, quantity: event.target.value }))
+                }
+                helperText="Number of shares held. Value is computed from the live BRL quote."
+                fullWidth
+              />
+
+              {investment && (
+                <TextField
+                  label="Current value (live)"
+                  value={formatCurrency(investment.currentValue, investment.currency)}
+                  helperText="Computed from quantity × the latest B3 price."
                   slotProps={{ input: { readOnly: true } }}
                   fullWidth
                 />

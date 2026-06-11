@@ -10,7 +10,8 @@ export interface PositionBase {
   risk: Investment.Risk;
   currentValue: number; // raw stored market value in centavos (may be 0)
   coinSymbol?: string | null; // crypto only
-  quantity?: number | null; // crypto only
+  tickerSymbol?: string | null; // stocks/reits only
+  quantity?: number | null; // crypto/dollar/stocks/reits
   currency: string;
 }
 
@@ -21,6 +22,7 @@ export interface CreatePositionInput {
   risk: Investment.Risk;
   currentValue: number; // centavos
   coinSymbol?: string | null;
+  tickerSymbol?: string | null;
   quantity?: number | null;
   currency: string;
 }
@@ -32,6 +34,7 @@ export interface UpdatePositionInput {
   risk?: Investment.Risk;
   currentValue?: number; // centavos
   coinSymbol?: string | null;
+  tickerSymbol?: string | null;
   quantity?: number | null;
 }
 
