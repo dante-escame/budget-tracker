@@ -37,6 +37,26 @@ export async function sendVerificationEmail(to: string, token: string): Promise<
   });
 }
 
+export async function sendMfaCodeEmail(to: string, code: string): Promise<void> {
+  if (process.env.NODE_ENV !== 'production' && !process.env.RESEND_API_KEY) {
+    console.log(`[mailer] MFA code for ${to}: ${code}`);
+    return;
+  }
+
+  const resend = getResend();
+
+  await resend.emails.send({
+    from: emailFrom,
+    to,
+    subject: 'Your Budget Tracker verification code',
+    html: `
+      <p>Your verification code is:</p>
+      <p style="font-size: 24px; font-weight: bold; letter-spacing: 4px;">${code}</p>
+      <p>This code expires shortly. If you did not request it, you can ignore this email.</p>
+    `,
+  });
+}
+
 export async function sendPasswordResetEmail(to: string, token: string): Promise<void> {
   const link = `${appUrl}/reset-password?token=${encodeURIComponent(token)}`;
 

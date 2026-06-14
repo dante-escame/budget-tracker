@@ -114,4 +114,13 @@ export interface EntryRepository {
 
   /** All non-deleted outcome entries with category 'investment', newest first. */
   listInvestmentOutcomes(userId: string): Promise<Entry.Record[]>;
+
+  /**
+   * Estimated monthly income (in centavos) for the previsions pre-fill. For each
+   * of the last 4 calendar months (the current UTC month and the 3 before it),
+   * takes the largest income entry occurring within that month's first 9 days,
+   * then averages those per-month maxima across the months that had one. Returns
+   * 0 when no qualifying income exists.
+   */
+  getExpectedMonthlyIncome(userId: string): Promise<number>;
 }

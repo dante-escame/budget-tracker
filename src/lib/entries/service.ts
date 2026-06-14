@@ -221,6 +221,15 @@ export function createEntryService(repository: EntryRepository) {
       return repository.listInvestmentOutcomes(userId);
     },
 
+    /**
+     * Estimated monthly income (centavos) for the previsions pre-fill: the
+     * average of each of the last 4 months' largest income entry within the
+     * month's first 9 days. Returns 0 when no qualifying income exists.
+     */
+    getExpectedMonthlyIncome(userId: string): Promise<number> {
+      return repository.getExpectedMonthlyIncome(userId);
+    },
+
     async getMonthlyOutcomesByCategory(
       userId: string,
       month: MonthFilter

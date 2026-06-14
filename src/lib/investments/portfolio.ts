@@ -59,6 +59,8 @@ export function buildPortfolio(
       risk: position.risk,
       currentValue,
       storedCurrentValue: position.currentValue,
+      coinSymbol: position.coinSymbol ?? null,
+      quantity: position.quantity ?? null,
       totalApplied,
       lastApplicationAt,
       sharePct,

@@ -46,6 +46,38 @@ export interface PasswordResetTokenDocument {
   used_at: Date | null;
 }
 
+export interface MfaMethodDocument {
+  _id?: ObjectId;
+  user_id: ObjectId;
+  type: Auth.MfaMethodType;
+  status: Auth.MfaMethodStatus;
+  secret_encrypted: string | null;
+  created_at: Date;
+  verified_at: Date | null;
+  last_used_at: Date | null;
+}
+
+export interface MfaChallengeDocument {
+  _id?: ObjectId;
+  user_id: ObjectId;
+  method_type: Auth.MfaMethodType;
+  purpose: Auth.MfaChallengePurpose;
+  challenge_hash: string;
+  code_hash: string | null;
+  attempts: number;
+  created_at: Date;
+  expires_at: Date;
+  consumed_at: Date | null;
+}
+
+export interface MfaBackupCodeDocument {
+  _id?: ObjectId;
+  user_id: ObjectId;
+  code_hash: string;
+  used_at: Date | null;
+  created_at: Date;
+}
+
 export interface AuthEventDocument {
   _id?: ObjectId;
   user_id: ObjectId | null;

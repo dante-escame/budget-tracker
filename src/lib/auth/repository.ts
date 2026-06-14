@@ -9,6 +9,7 @@ export interface CreateAuthUserInput {
 
 export interface UpdateAuthUserInput {
   emailVerifiedAt?: Date | null;
+  mfaEnrolledAt?: Date | null;
   lastLoginAt?: Date | null;
   passwordHash?: string;
   status?: Auth.User['status'];
@@ -33,6 +34,41 @@ export interface CreateIssuedTokenInput {
   kind: Auth.TokenKind;
   createdAt: Date;
   expiresAt: Date;
+}
+
+export interface CreateMfaMethodInput {
+  userId: string;
+  type: Auth.MfaMethodType;
+  status: Auth.MfaMethodStatus;
+  secretEncrypted: string | null;
+}
+
+export interface UpdateMfaMethodInput {
+  status?: Auth.MfaMethodStatus;
+  secretEncrypted?: string | null;
+  verifiedAt?: Date | null;
+  lastUsedAt?: Date | null;
+}
+
+export interface CreateMfaChallengeInput {
+  userId: string;
+  methodType: Auth.MfaMethodType;
+  purpose: Auth.MfaChallengePurpose;
+  challengeHash: string;
+  codeHash: string | null;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
+// Repository-layer view that carries the code hash the domain type omits.
+export interface MfaChallengeRecord {
+  challenge: Auth.MfaChallenge;
+  codeHash: string | null;
+}
+
+export interface BackupCodeRecord {
+  id: string;
+  usedAt: Date | null;
 }
 
 export interface AuthRepository {
@@ -60,6 +96,46 @@ export interface AuthRepository {
     userId: string,
     kind: Auth.TokenKind
   ): Promise<number>;
+
+  createMfaMethod(input: CreateMfaMethodInput): Promise<Auth.MfaMethod>;
+  findMfaMethod(
+    userId: string,
+    type: Auth.MfaMethodType
+  ): Promise<Auth.MfaMethod | null>;
+  findMfaMethodSecret(
+    userId: string,
+    type: Auth.MfaMethodType
+  ): Promise<string | null>;
+  listMfaMethods(userId: string): Promise<Auth.MfaMethod[]>;
+  countActiveMfaMethods(userId: string): Promise<number>;
+  updateMfaMethod(
+    userId: string,
+    type: Auth.MfaMethodType,
+    input: UpdateMfaMethodInput
+  ): Promise<Auth.MfaMethod>;
+  deleteMfaMethod(userId: string, type: Auth.MfaMethodType): Promise<void>;
+
+  createMfaChallenge(input: CreateMfaChallengeInput): Promise<Auth.MfaChallenge>;
+  findMfaChallengeByHash(challengeHash: string): Promise<MfaChallengeRecord | null>;
+  findLatestMfaChallenge(
+    userId: string,
+    methodType: Auth.MfaMethodType,
+    purpose: Auth.MfaChallengePurpose
+  ): Promise<MfaChallengeRecord | null>;
+  incrementMfaChallengeAttempts(challengeId: string): Promise<Auth.MfaChallenge>;
+  consumeMfaChallenge(challengeId: string, consumedAt: Date): Promise<void>;
+  deleteMfaChallengesByUserAndPurpose(
+    userId: string,
+    purpose: Auth.MfaChallengePurpose
+  ): Promise<number>;
+
+  createBackupCodes(userId: string, codeHashes: string[]): Promise<void>;
+  deleteBackupCodesByUserId(userId: string): Promise<number>;
+  findBackupCodeByHash(
+    userId: string,
+    codeHash: string
+  ): Promise<BackupCodeRecord | null>;
+  markBackupCodeUsed(backupCodeId: string, usedAt: Date): Promise<void>;
 
   createAuthEvent(event: Auth.Event): Promise<void>;
 }

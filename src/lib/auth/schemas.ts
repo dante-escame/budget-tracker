@@ -18,11 +18,29 @@ const signInPassword = z.string().min(1, 'Password is required.');
 
 const token = z.string().min(1, 'Token is required.');
 
+const mfaMethodType = z.enum(['totp', 'email']);
+
+// A login challenge code may be a 6-digit OTP/TOTP or a formatted backup code.
+const mfaCode = z
+  .string()
+  .min(1, 'Enter your verification code.')
+  .max(32, 'Code is too long.');
+
+export const mfaEnrollSchema = z.object({ type: mfaMethodType });
+export const mfaConfirmEnrollSchema = z.object({ type: mfaMethodType, code: mfaCode });
+export const mfaDisableSchema = z.object({ type: mfaMethodType });
+export const mfaLoginVerifySchema = z.object({ code: mfaCode });
+
 export const signInSchema = z.object({ email, password: signInPassword });
 export const signUpSchema = z.object({ email, password });
 export const forgotPasswordSchema = z.object({ email });
 export const resetPasswordSchema = z.object({ token, password });
 export const verifyEmailSchema = z.object({ token });
+
+export type MfaEnrollFields = z.infer<typeof mfaEnrollSchema>;
+export type MfaConfirmEnrollFields = z.infer<typeof mfaConfirmEnrollSchema>;
+export type MfaDisableFields = z.infer<typeof mfaDisableSchema>;
+export type MfaLoginVerifyFields = z.infer<typeof mfaLoginVerifySchema>;
 
 export type SignInFields = z.infer<typeof signInSchema>;
 export type SignUpFields = z.infer<typeof signUpSchema>;

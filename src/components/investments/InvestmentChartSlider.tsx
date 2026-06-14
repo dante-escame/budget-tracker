@@ -64,7 +64,7 @@ function PieTooltip({
         pointerEvents: 'none',
       }}
     >
-      <Typography variant="body2" fontWeight={600}>
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>
         {item.name} ({item.payload.percentage}%)
       </Typography>
       <Typography variant="body2" color="text.secondary">
