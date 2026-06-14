@@ -1,8 +1,23 @@
 import 'server-only';
 
-import { clearSessionCookie, getSessionCookie, setSessionCookie } from '@/lib/auth/cookies';
+import {
+  clearMfaChallengeCookie,
+  clearSessionCookie,
+  getMfaChallengeCookie,
+  getSessionCookie,
+  setMfaChallengeCookie,
+  setSessionCookie,
+} from '@/lib/auth/cookies';
 import { authConfig } from '@/lib/auth/config';
 import { normalizeEmail, toDisplayEmail } from '@/lib/auth/email';
+import { decryptSecret, encryptSecret } from '@/lib/auth/mfa-crypto';
+import {
+  generateBackupCodes,
+  generateNumericOtp,
+  normalizeBackupCode,
+} from '@/lib/auth/mfa-codes';
+import { buildOtpAuthUri, generateTotpSecret, verifyTotp } from '@/lib/auth/totp';
+import { sendMfaCodeEmail } from '@/lib/mailer';
 import type { AuthRepository } from '@/lib/auth/repository';
 import { hashPassword, verifyPasswordHash } from '@/lib/auth/password';
 import {
@@ -12,7 +27,11 @@ import {
   isSessionExpired,
   shouldRefreshSession,
 } from '@/lib/auth/session';
-import { createUserTokenMaterial, hashIpAddress, hashOpaqueToken } from '@/lib/auth/tokens';
+import {
+  createUserTokenMaterial,
+  hashIpAddress,
+  hashOpaqueToken,
+} from '@/lib/auth/tokens';
 import type { Auth } from '@/lib/auth/types';
 
 export interface CreateUserInput {
@@ -66,6 +85,44 @@ export class StepUpAuthenticationRequiredError extends Error {
   constructor() {
     super('Step-up authentication is required.');
   }
+}
+
+export class MfaMethodAlreadyActiveError extends Error {
+  constructor() {
+    super('That authentication method is already active.');
+  }
+}
+
+export class MfaMethodNotFoundError extends Error {
+  constructor() {
+    super('That authentication method is not set up.');
+  }
+}
+
+export class InvalidMfaCodeError extends Error {
+  constructor() {
+    super('The verification code is incorrect or has expired.');
+  }
+}
+
+export class MfaChallengeNotFoundError extends Error {
+  constructor() {
+    super('Your verification session has expired. Please sign in again.');
+  }
+}
+
+export interface MfaEnrollmentStart {
+  type: Auth.MfaMethodType;
+  secret?: string;
+  otpauthUri?: string;
+}
+
+export interface MfaEnrollmentResult {
+  backupCodes: string[];
+}
+
+export interface MfaLoginChallengeResult {
+  methodType: Auth.MfaMethodType;
 }
 
 export function createAuthService(repository: AuthRepository) {
@@ -131,11 +188,13 @@ export function createAuthService(repository: AuthRepository) {
 
   async function createSession(
     user: Auth.User,
-    context?: Auth.LoginContext
+    context?: Auth.LoginContext,
+    options?: { level?: Auth.SessionLevel }
   ): Promise<AuthenticatedSession> {
     const sessionDraft = buildSessionRecord({
       userId: user.id,
       context,
+      level: options?.level,
     });
 
     const session = await repository.createSession({
@@ -376,6 +435,434 @@ export function createAuthService(repository: AuthRepository) {
     return updatedUser;
   }
 
+  async function recordMfaEvent(
+    type: string,
+    userId: string,
+    context?: Auth.LoginContext,
+    metadata?: Auth.Event['metadata']
+  ): Promise<void> {
+    await repository.createAuthEvent({
+      userId,
+      type,
+      occurredAt: new Date(),
+      ipHash: context?.ipAddress ? hashIpAddress(context.ipAddress) : null,
+      userAgent: context?.userAgent?.slice(0, 512) ?? null,
+      metadata,
+    });
+  }
+
+  async function replaceBackupCodes(userId: string): Promise<string[]> {
+    await repository.deleteBackupCodesByUserId(userId);
+    const codes = generateBackupCodes(authConfig.mfaBackupCodeCount);
+    await repository.createBackupCodes(
+      userId,
+      codes.map((code) => hashOpaqueToken(code))
+    );
+
+    return codes;
+  }
+
+  async function issueEmailCode(
+    userId: string,
+    email: string,
+    purpose: Auth.MfaChallengePurpose
+  ): Promise<void> {
+    await repository.deleteMfaChallengesByUserAndPurpose(userId, purpose);
+
+    const code = generateNumericOtp();
+    const now = new Date();
+    const { tokenHash } = createUserTokenMaterial();
+
+    await repository.createMfaChallenge({
+      userId,
+      methodType: 'email',
+      purpose,
+      challengeHash: tokenHash,
+      codeHash: hashOpaqueToken(code),
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + authConfig.mfaEmailCodeTtlSeconds * 1000),
+    });
+
+    await sendMfaCodeEmail(email, code);
+  }
+
+  async function userHasActiveMfa(userId: string): Promise<boolean> {
+    return (await repository.countActiveMfaMethods(userId)) > 0;
+  }
+
+  async function listMfaMethods(userId: string): Promise<Auth.MfaMethod[]> {
+    return repository.listMfaMethods(userId);
+  }
+
+  async function startTotpEnrollment(
+    userId: string,
+    accountLabel: string,
+    context?: Auth.LoginContext
+  ): Promise<MfaEnrollmentStart> {
+    const existing = await repository.findMfaMethod(userId, 'totp');
+
+    if (existing?.status === 'active') {
+      throw new MfaMethodAlreadyActiveError();
+    }
+
+    const secret = generateTotpSecret();
+    const secretEncrypted = encryptSecret(secret);
+
+    if (existing) {
+      await repository.updateMfaMethod(userId, 'totp', {
+        status: 'pending',
+        secretEncrypted,
+        verifiedAt: null,
+      });
+    } else {
+      await repository.createMfaMethod({
+        userId,
+        type: 'totp',
+        status: 'pending',
+        secretEncrypted,
+      });
+    }
+
+    await recordMfaEvent('auth.mfa.enrollment.started', userId, context, {
+      method: 'totp',
+    });
+
+    return {
+      type: 'totp',
+      secret,
+      otpauthUri: buildOtpAuthUri(secret, accountLabel),
+    };
+  }
+
+  async function startEmailEnrollment(
+    userId: string,
+    email: string,
+    context?: Auth.LoginContext
+  ): Promise<MfaEnrollmentStart> {
+    const existing = await repository.findMfaMethod(userId, 'email');
+
+    if (existing?.status === 'active') {
+      throw new MfaMethodAlreadyActiveError();
+    }
+
+    if (existing) {
+      await repository.updateMfaMethod(userId, 'email', {
+        status: 'pending',
+        verifiedAt: null,
+      });
+    } else {
+      await repository.createMfaMethod({
+        userId,
+        type: 'email',
+        status: 'pending',
+        secretEncrypted: null,
+      });
+    }
+
+    await issueEmailCode(userId, email, 'enrollment');
+
+    await recordMfaEvent('auth.mfa.enrollment.started', userId, context, {
+      method: 'email',
+    });
+
+    return { type: 'email' };
+  }
+
+  async function confirmEnrollment(
+    userId: string,
+    type: Auth.MfaMethodType,
+    code: string,
+    context?: Auth.LoginContext
+  ): Promise<MfaEnrollmentResult> {
+    const method = await repository.findMfaMethod(userId, type);
+
+    if (!method) {
+      throw new MfaMethodNotFoundError();
+    }
+
+    if (method.status === 'active') {
+      throw new MfaMethodAlreadyActiveError();
+    }
+
+    if (type === 'totp') {
+      const secretEncrypted = await repository.findMfaMethodSecret(userId, 'totp');
+
+      if (!secretEncrypted || !verifyTotp(decryptSecret(secretEncrypted), code)) {
+        throw new InvalidMfaCodeError();
+      }
+    } else {
+      const record = await repository.findLatestMfaChallenge(userId, 'email', 'enrollment');
+      await verifyEmailChallengeOrThrow(record, code);
+      await repository.consumeMfaChallenge(record!.challenge.id, new Date());
+    }
+
+    const now = new Date();
+    await repository.updateMfaMethod(userId, type, {
+      status: 'active',
+      verifiedAt: now,
+    });
+
+    const user = await repository.findUserById(userId);
+    const isFirstMethod = !user?.mfaEnrolledAt;
+
+    if (isFirstMethod) {
+      await repository.updateUser(userId, { mfaEnrolledAt: now, updatedAt: now });
+    }
+
+    await recordMfaEvent('auth.mfa.enrolled', userId, context, { method: type });
+
+    if (isFirstMethod) {
+      return { backupCodes: await replaceBackupCodes(userId) };
+    }
+
+    return { backupCodes: [] };
+  }
+
+  async function disableMfaMethod(
+    userId: string,
+    type: Auth.MfaMethodType,
+    context?: Auth.LoginContext
+  ): Promise<void> {
+    const method = await repository.findMfaMethod(userId, type);
+
+    if (!method) {
+      throw new MfaMethodNotFoundError();
+    }
+
+    await repository.deleteMfaMethod(userId, type);
+    await repository.deleteMfaChallengesByUserAndPurpose(userId, 'enrollment');
+
+    const remaining = await repository.countActiveMfaMethods(userId);
+
+    if (remaining === 0) {
+      const now = new Date();
+      await repository.updateUser(userId, { mfaEnrolledAt: null, updatedAt: now });
+      await repository.deleteBackupCodesByUserId(userId);
+    }
+
+    await recordMfaEvent('auth.mfa.disabled', userId, context, { method: type });
+  }
+
+  async function regenerateBackupCodes(
+    userId: string,
+    context?: Auth.LoginContext
+  ): Promise<string[]> {
+    if ((await repository.countActiveMfaMethods(userId)) === 0) {
+      throw new MfaMethodNotFoundError();
+    }
+
+    const codes = await replaceBackupCodes(userId);
+    await recordMfaEvent('auth.mfa.backup_codes.regenerated', userId, context);
+
+    return codes;
+  }
+
+  async function beginLoginChallenge(
+    user: Auth.User,
+    context?: Auth.LoginContext
+  ): Promise<MfaLoginChallengeResult> {
+    const methods = await repository.listMfaMethods(user.id);
+    const active = methods.filter((method) => method.status === 'active');
+    // Prefer the authenticator app; fall back to email when it is the only one.
+    const chosen =
+      active.find((method) => method.type === 'totp') ??
+      active.find((method) => method.type === 'email');
+
+    if (!chosen) {
+      throw new MfaMethodNotFoundError();
+    }
+
+    await repository.deleteMfaChallengesByUserAndPurpose(user.id, 'login');
+
+    const { token, tokenHash } = createUserTokenMaterial();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + authConfig.mfaChallengeTtlSeconds * 1000);
+
+    let codeHash: string | null = null;
+    let emailCode: string | null = null;
+
+    if (chosen.type === 'email') {
+      emailCode = generateNumericOtp();
+      codeHash = hashOpaqueToken(emailCode);
+    }
+
+    await repository.createMfaChallenge({
+      userId: user.id,
+      methodType: chosen.type,
+      purpose: 'login',
+      challengeHash: tokenHash,
+      codeHash,
+      createdAt: now,
+      expiresAt,
+    });
+
+    await setMfaChallengeCookie(token, expiresAt);
+
+    if (chosen.type === 'email' && emailCode) {
+      await sendMfaCodeEmail(user.emailDisplay, emailCode);
+    }
+
+    await recordMfaEvent('auth.mfa.login.challenged', user.id, context, {
+      method: chosen.type,
+    });
+
+    return { methodType: chosen.type };
+  }
+
+  async function resendLoginChallenge(
+    context?: Auth.LoginContext
+  ): Promise<MfaLoginChallengeResult> {
+    const token = await getMfaChallengeCookie();
+
+    if (!token) {
+      throw new MfaChallengeNotFoundError();
+    }
+
+    const record = await repository.findMfaChallengeByHash(hashOpaqueToken(token));
+
+    if (
+      !record ||
+      record.challenge.purpose !== 'login' ||
+      record.challenge.consumedAt
+    ) {
+      throw new MfaChallengeNotFoundError();
+    }
+
+    if (record.challenge.methodType !== 'email') {
+      // Authenticator codes are generated on the device; nothing to resend.
+      return { methodType: record.challenge.methodType };
+    }
+
+    const user = await repository.findUserById(record.challenge.userId);
+
+    if (!user) {
+      throw new MfaChallengeNotFoundError();
+    }
+
+    return beginLoginChallenge(user, context);
+  }
+
+  async function completeLoginChallenge(
+    code: string,
+    context?: Auth.LoginContext
+  ): Promise<AuthenticatedSession> {
+    const token = await getMfaChallengeCookie();
+
+    if (!token) {
+      throw new MfaChallengeNotFoundError();
+    }
+
+    const record = await repository.findMfaChallengeByHash(hashOpaqueToken(token));
+
+    if (
+      !record ||
+      record.challenge.purpose !== 'login' ||
+      record.challenge.consumedAt ||
+      record.challenge.expiresAt.getTime() <= Date.now()
+    ) {
+      await clearMfaChallengeCookie();
+      throw new MfaChallengeNotFoundError();
+    }
+
+    const { challenge } = record;
+
+    if (challenge.attempts >= authConfig.mfaMaxAttempts) {
+      await repository.consumeMfaChallenge(challenge.id, new Date());
+      await clearMfaChallengeCookie();
+      throw new MfaChallengeNotFoundError();
+    }
+
+    const user = await repository.findUserById(challenge.userId);
+
+    if (!user) {
+      await clearMfaChallengeCookie();
+      throw new MfaChallengeNotFoundError();
+    }
+
+    const verification = await verifyLoginCode(user, challenge, record.codeHash, code);
+
+    if (!verification.ok) {
+      const updated = await repository.incrementMfaChallengeAttempts(challenge.id);
+
+      if (updated.attempts >= authConfig.mfaMaxAttempts) {
+        await repository.consumeMfaChallenge(challenge.id, new Date());
+      }
+
+      throw new InvalidMfaCodeError();
+    }
+
+    const now = new Date();
+    await repository.consumeMfaChallenge(challenge.id, now);
+    await clearMfaChallengeCookie();
+
+    if (verification.usedBackupCode) {
+      await recordMfaEvent('auth.mfa.backup_code.used', user.id, context);
+    } else {
+      await repository.updateMfaMethod(user.id, challenge.methodType, {
+        lastUsedAt: now,
+      });
+    }
+
+    await recordMfaEvent('auth.mfa.login.succeeded', user.id, context, {
+      method: verification.usedBackupCode ? 'backup_code' : challenge.methodType,
+    });
+
+    return createSession(user, context, { level: 'step_up' });
+  }
+
+  async function verifyEmailChallengeOrThrow(
+    record: Awaited<ReturnType<AuthRepository['findLatestMfaChallenge']>>,
+    code: string
+  ): Promise<void> {
+    if (
+      !record ||
+      record.challenge.consumedAt ||
+      record.challenge.expiresAt.getTime() <= Date.now() ||
+      record.challenge.attempts >= authConfig.mfaMaxAttempts
+    ) {
+      throw new InvalidMfaCodeError();
+    }
+
+    const matches =
+      record.codeHash !== null && record.codeHash === hashOpaqueToken(code.trim());
+
+    if (!matches) {
+      await repository.incrementMfaChallengeAttempts(record.challenge.id);
+      throw new InvalidMfaCodeError();
+    }
+  }
+
+  async function verifyLoginCode(
+    user: Auth.User,
+    challenge: Auth.MfaChallenge,
+    codeHash: string | null,
+    code: string
+  ): Promise<{ ok: boolean; usedBackupCode: boolean }> {
+    if (challenge.methodType === 'totp') {
+      const secretEncrypted = await repository.findMfaMethodSecret(user.id, 'totp');
+
+      if (secretEncrypted && verifyTotp(decryptSecret(secretEncrypted), code)) {
+        return { ok: true, usedBackupCode: false };
+      }
+    } else if (codeHash !== null && codeHash === hashOpaqueToken(code.trim())) {
+      return { ok: true, usedBackupCode: false };
+    }
+
+    // Backup codes work as a fallback regardless of the challenge method.
+    const backup = await repository.findBackupCodeByHash(
+      user.id,
+      hashOpaqueToken(normalizeBackupCode(code))
+    );
+
+    if (backup && !backup.usedAt) {
+      await repository.markBackupCodeUsed(backup.id, new Date());
+
+      return { ok: true, usedBackupCode: true };
+    }
+
+    return { ok: false, usedBackupCode: false };
+  }
+
   async function requireUser(): Promise<NonNullable<Auth.SessionValidationResult['user']>> {
     const result = await validateRequestSession();
 
@@ -435,19 +922,29 @@ export function createAuthService(repository: AuthRepository) {
   }
 
   return {
+    beginLoginChallenge,
+    completeLoginChallenge,
+    confirmEnrollment,
     consumeToken,
     createSession,
     createUser,
+    disableMfaMethod,
     getStepUpRequirementForSensitiveAction,
     invalidateAllUserSessions,
     invalidateSession,
     issueToken,
+    listMfaMethods,
     peekRequestSession,
+    regenerateBackupCodes,
     requestPasswordReset,
     requireRecentAuth,
     requireUser,
     requireVerifiedUser,
+    resendLoginChallenge,
     resetPassword,
+    startEmailEnrollment,
+    startTotpEnrollment,
+    userHasActiveMfa,
     validateRequestSession,
     verifyEmailAddress,
     verifyPasswordLogin,

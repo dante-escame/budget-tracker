@@ -16,6 +16,7 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MoreTimeRoundedIcon from '@mui/icons-material/MoreTimeRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import SellRoundedIcon from '@mui/icons-material/SellRounded';
+import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 
 type NavItemConfig = { label: string; href: string; Icon: React.ElementType };
@@ -183,8 +184,19 @@ export function AppSidebar() {
         ))}
       </Box>
 
-      {/* Sign out */}
-      <SignOutButton />
+      {/* Settings */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.75 }}>
+        <NavItem
+          label="Settings"
+          href="/dashboard/settings"
+          Icon={SettingsRoundedIcon}
+          active={
+            pathname === '/dashboard/settings' ||
+            pathname.startsWith('/dashboard/settings/')
+          }
+        />
+        <SignOutButton />
+      </Box>
     </Box>
   );
 }

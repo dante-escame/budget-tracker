@@ -11,10 +11,14 @@ import {
 import type {
   AuthRepository,
   UpdateAuthUserInput,
+  UpdateMfaMethodInput,
 } from '@/lib/auth/repository';
 import { getAuthCollections } from '@/lib/auth/mongodb-collections';
 import type {
   AuthEventDocument,
+  MfaBackupCodeDocument,
+  MfaChallengeDocument,
+  MfaMethodDocument,
   PasswordResetTokenDocument,
   SessionDocument,
   UserDocument,
@@ -193,6 +197,222 @@ export async function createMongoAuthRepository(): Promise<AuthRepository> {
       return result.deletedCount ?? 0;
     },
 
+    async createMfaMethod(input) {
+      const now = new Date();
+      const document: OptionalId<MfaMethodDocument> = {
+        user_id: parseObjectId(input.userId),
+        type: input.type,
+        status: input.status,
+        secret_encrypted: input.secretEncrypted,
+        created_at: now,
+        verified_at: null,
+        last_used_at: null,
+      };
+
+      try {
+        const result = await collections.mfaMethods.insertOne(document);
+        const created = withInsertedId(document, result);
+
+        return mapMfaMethodDocument(created);
+      } catch (error) {
+        handleDuplicateKey(error, 'That authentication method is already set up.');
+      }
+    },
+
+    async findMfaMethod(userId, type) {
+      const document = await collections.mfaMethods.findOne({
+        user_id: parseObjectId(userId),
+        type,
+      });
+
+      return document ? mapMfaMethodDocument(document) : null;
+    },
+
+    async findMfaMethodSecret(userId, type) {
+      const document = await collections.mfaMethods.findOne({
+        user_id: parseObjectId(userId),
+        type,
+      });
+
+      return document?.secret_encrypted ?? null;
+    },
+
+    async listMfaMethods(userId) {
+      const documents = await collections.mfaMethods
+        .find({ user_id: parseObjectId(userId) })
+        .sort({ created_at: 1 })
+        .toArray();
+
+      return documents.map(mapMfaMethodDocument);
+    },
+
+    async countActiveMfaMethods(userId) {
+      return collections.mfaMethods.countDocuments({
+        user_id: parseObjectId(userId),
+        status: 'active',
+      });
+    },
+
+    async updateMfaMethod(userId, type, input) {
+      const updateDocument = buildMfaMethodUpdate(input);
+      const result = await collections.mfaMethods.findOneAndUpdate(
+        { user_id: parseObjectId(userId), type },
+        { $set: updateDocument },
+        { returnDocument: 'after' }
+      );
+
+      if (!result) {
+        throw new Error(`MFA method not found for user ${userId} and type ${type}.`);
+      }
+
+      return mapMfaMethodDocument(result);
+    },
+
+    async deleteMfaMethod(userId, type) {
+      await collections.mfaMethods.deleteOne({
+        user_id: parseObjectId(userId),
+        type,
+      });
+    },
+
+    async createMfaChallenge(input) {
+      const document: OptionalId<MfaChallengeDocument> = {
+        user_id: parseObjectId(input.userId),
+        method_type: input.methodType,
+        purpose: input.purpose,
+        challenge_hash: input.challengeHash,
+        code_hash: input.codeHash,
+        attempts: 0,
+        created_at: input.createdAt,
+        expires_at: input.expiresAt,
+        consumed_at: null,
+      };
+
+      try {
+        const result = await collections.mfaChallenges.insertOne(document);
+        const created = withInsertedId(document, result);
+
+        return mapMfaChallengeDocument(created);
+      } catch (error) {
+        handleDuplicateKey(error, 'A challenge with that hash already exists.');
+      }
+    },
+
+    async findMfaChallengeByHash(challengeHash) {
+      const document = await collections.mfaChallenges.findOne({
+        challenge_hash: challengeHash,
+      });
+
+      if (!document) {
+        return null;
+      }
+
+      return {
+        challenge: mapMfaChallengeDocument(document),
+        codeHash: document.code_hash,
+      };
+    },
+
+    async findLatestMfaChallenge(userId, methodType, purpose) {
+      const document = await collections.mfaChallenges
+        .find({
+          user_id: parseObjectId(userId),
+          method_type: methodType,
+          purpose,
+        })
+        .sort({ created_at: -1 })
+        .limit(1)
+        .next();
+
+      if (!document) {
+        return null;
+      }
+
+      return {
+        challenge: mapMfaChallengeDocument(document),
+        codeHash: document.code_hash,
+      };
+    },
+
+    async incrementMfaChallengeAttempts(challengeId) {
+      const result = await collections.mfaChallenges.findOneAndUpdate(
+        { _id: parseObjectId(challengeId) },
+        { $inc: { attempts: 1 } },
+        { returnDocument: 'after' }
+      );
+
+      if (!result) {
+        throw new Error(`MFA challenge not found for id ${challengeId}.`);
+      }
+
+      return mapMfaChallengeDocument(result);
+    },
+
+    async consumeMfaChallenge(challengeId, consumedAt) {
+      await collections.mfaChallenges.updateOne(
+        { _id: parseObjectId(challengeId) },
+        { $set: { consumed_at: consumedAt } }
+      );
+    },
+
+    async deleteMfaChallengesByUserAndPurpose(userId, purpose) {
+      const result = await collections.mfaChallenges.deleteMany({
+        user_id: parseObjectId(userId),
+        purpose,
+      });
+
+      return result.deletedCount ?? 0;
+    },
+
+    async createBackupCodes(userId, codeHashes) {
+      if (codeHashes.length === 0) {
+        return;
+      }
+
+      const now = new Date();
+      const documents: OptionalId<MfaBackupCodeDocument>[] = codeHashes.map(
+        (codeHash) => ({
+          user_id: parseObjectId(userId),
+          code_hash: codeHash,
+          used_at: null,
+          created_at: now,
+        })
+      );
+
+      await collections.mfaBackupCodes.insertMany(documents);
+    },
+
+    async deleteBackupCodesByUserId(userId) {
+      const result = await collections.mfaBackupCodes.deleteMany({
+        user_id: parseObjectId(userId),
+      });
+
+      return result.deletedCount ?? 0;
+    },
+
+    async findBackupCodeByHash(userId, codeHash) {
+      const document = await collections.mfaBackupCodes.findOne({
+        user_id: parseObjectId(userId),
+        code_hash: codeHash,
+      });
+
+      if (!document) {
+        return null;
+      }
+
+      return {
+        id: document._id.toHexString(),
+        usedAt: document.used_at,
+      };
+    },
+
+    async markBackupCodeUsed(backupCodeId, usedAt) {
+      await collections.mfaBackupCodes.updateOne(
+        { _id: parseObjectId(backupCodeId) },
+        { $set: { used_at: usedAt } }
+      );
+    },
+
     async createAuthEvent(event) {
       const document: OptionalId<AuthEventDocument> = {
         user_id: event.userId ? parseObjectId(event.userId) : null,
@@ -224,6 +444,10 @@ function buildUserUpdate(input: UpdateAuthUserInput): Partial<UserDocument> {
 
   if (input.emailVerifiedAt !== undefined) {
     update.email_verified_at = input.emailVerifiedAt;
+  }
+
+  if (input.mfaEnrolledAt !== undefined) {
+    update.mfa_enrolled_at = input.mfaEnrolledAt;
   }
 
   if (input.lastLoginAt !== undefined) {
@@ -267,6 +491,55 @@ function buildSessionUpdate(
   }
 
   return update;
+}
+
+function buildMfaMethodUpdate(input: UpdateMfaMethodInput): Partial<MfaMethodDocument> {
+  const update: Partial<MfaMethodDocument> = {};
+
+  if (input.status !== undefined) {
+    update.status = input.status;
+  }
+
+  if (input.secretEncrypted !== undefined) {
+    update.secret_encrypted = input.secretEncrypted;
+  }
+
+  if (input.verifiedAt !== undefined) {
+    update.verified_at = input.verifiedAt;
+  }
+
+  if (input.lastUsedAt !== undefined) {
+    update.last_used_at = input.lastUsedAt;
+  }
+
+  return update;
+}
+
+function mapMfaMethodDocument(document: WithId<MfaMethodDocument>): Auth.MfaMethod {
+  return {
+    id: document._id.toHexString(),
+    userId: document.user_id.toHexString(),
+    type: document.type,
+    status: document.status,
+    createdAt: document.created_at,
+    verifiedAt: document.verified_at,
+    lastUsedAt: document.last_used_at,
+  };
+}
+
+function mapMfaChallengeDocument(
+  document: WithId<MfaChallengeDocument>
+): Auth.MfaChallenge {
+  return {
+    id: document._id.toHexString(),
+    userId: document.user_id.toHexString(),
+    methodType: document.method_type,
+    purpose: document.purpose,
+    attempts: document.attempts,
+    createdAt: document.created_at,
+    expiresAt: document.expires_at,
+    consumedAt: document.consumed_at,
+  };
 }
 
 function mapUserDocument(document: WithId<UserDocument>): Auth.User {
