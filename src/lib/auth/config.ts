@@ -28,6 +28,7 @@ export interface AuthConfig {
   mfaChallengeCookieName: string;
   mfaChallengeTtlSeconds: number;
   mfaEmailCodeTtlSeconds: number;
+  mfaResendCooldownSeconds: number;
   mfaMaxAttempts: number;
   mfaBackupCodeCount: number;
   mfaSecretEncryptionKey: string | undefined;
@@ -55,6 +56,7 @@ export const authConfig: AuthConfig = {
   mfaChallengeCookieName: 'budget_tracker_mfa',
   mfaChallengeTtlSeconds: getNumberEnv('AUTH_MFA_CHALLENGE_TTL_SECONDS', 60 * 5),
   mfaEmailCodeTtlSeconds: getNumberEnv('AUTH_MFA_EMAIL_CODE_TTL_SECONDS', 60 * 10),
+  mfaResendCooldownSeconds: getNumberEnv('AUTH_MFA_RESEND_COOLDOWN_SECONDS', 60),
   mfaMaxAttempts: getNumberEnv('AUTH_MFA_MAX_ATTEMPTS', 5),
   mfaBackupCodeCount: getNumberEnv('AUTH_MFA_BACKUP_CODE_COUNT', 10),
   mfaSecretEncryptionKey: process.env.MFA_SECRET_ENCRYPTION_KEY?.trim() || undefined,

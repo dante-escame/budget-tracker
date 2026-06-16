@@ -167,7 +167,9 @@ export function InvestmentFormDialog({
         setError('Current value must be a valid amount.');
         return;
       }
-      if (currentValue !== null) body.currentValue = currentValue;
+      // Empty input clears any manual value, reverting to the total-applied
+      // derived default (0 is the "derived" sentinel used by the other branches).
+      body.currentValue = currentValue ?? 0;
       // Clear any quote-derived fields when editing a position into a manual category.
       if (investment) {
         body.coinSymbol = null;

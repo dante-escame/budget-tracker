@@ -117,6 +117,16 @@ describe('createInvestmentSchema — dollar', () => {
     const result = createInvestmentSchema.safeParse({ ...dollar, quantity: 0 });
     expect(result.success).toBe(false);
   });
+
+  it('accepts an amount with up to 2 decimals (cents)', () => {
+    const result = createInvestmentSchema.safeParse({ ...dollar, quantity: 100.55 });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an amount with more than 2 decimals', () => {
+    const result = createInvestmentSchema.safeParse({ ...dollar, quantity: 100.555 });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('createInvestmentSchema — stocks & FIIs', () => {

@@ -2,7 +2,13 @@ import 'server-only';
 
 import { NextResponse } from 'next/server';
 
-import { badRequest, conflict, notFound, unauthorized } from '@/lib/auth/http';
+import {
+  badRequest,
+  conflict,
+  notFound,
+  tooManyRequests,
+  unauthorized,
+} from '@/lib/auth/http';
 import { getAuthService } from '@/lib/auth/runtime';
 import {
   AuthenticationRequiredError,
@@ -10,6 +16,7 @@ import {
   MfaChallengeNotFoundError,
   MfaMethodAlreadyActiveError,
   MfaMethodNotFoundError,
+  MfaResendCooldownError,
   RecentAuthenticationRequiredError,
 } from '@/lib/auth/service';
 import type { Auth } from '@/lib/auth/types';
@@ -63,9 +70,12 @@ export function mfaErrorResponse(error: unknown): NextResponse {
     return unauthorized(error.message);
   }
 
-  if (error instanceof Error) {
-    return badRequest(error.message);
+  if (error instanceof MfaResendCooldownError) {
+    return tooManyRequests(error.message);
   }
 
+  // Only known MFA domain errors map to 4xx; anything else is an unexpected
+  // server failure and is rethrown so it surfaces as a 500 (and avoids leaking
+  // internal error messages to the client).
   throw error;
 }

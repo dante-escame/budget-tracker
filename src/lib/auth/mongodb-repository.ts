@@ -349,10 +349,16 @@ export async function createMongoAuthRepository(): Promise<AuthRepository> {
     },
 
     async consumeMfaChallenge(challengeId, consumedAt) {
-      await collections.mfaChallenges.updateOne(
-        { _id: parseObjectId(challengeId) },
+      const result = await collections.mfaChallenges.updateOne(
+        { _id: parseObjectId(challengeId), consumed_at: null },
         { $set: { consumed_at: consumedAt } }
       );
+
+      if (!result.matchedCount) {
+        throw new Error(
+          `MFA challenge already consumed or not found for id ${challengeId}.`
+        );
+      }
     },
 
     async deleteMfaChallengesByUserAndPurpose(userId, purpose) {
@@ -407,10 +413,16 @@ export async function createMongoAuthRepository(): Promise<AuthRepository> {
     },
 
     async markBackupCodeUsed(backupCodeId, usedAt) {
-      await collections.mfaBackupCodes.updateOne(
-        { _id: parseObjectId(backupCodeId) },
+      const result = await collections.mfaBackupCodes.updateOne(
+        { _id: parseObjectId(backupCodeId), used_at: null },
         { $set: { used_at: usedAt } }
       );
+
+      if (!result.matchedCount) {
+        throw new Error(
+          `Backup code already used or not found for id ${backupCodeId}.`
+        );
+      }
     },
 
     async createAuthEvent(event) {

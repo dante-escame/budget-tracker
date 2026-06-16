@@ -171,12 +171,9 @@ async function ensureAuthIndexes(collections: AuthCollections): Promise<void> {
     ]),
     collections.mfaBackupCodes.createIndexes([
       {
-        key: { user_id: 1 },
-        name: 'mfa_backup_codes_user_id',
-      },
-      {
-        key: { code_hash: 1 },
-        name: 'mfa_backup_codes_code_hash',
+        key: { user_id: 1, code_hash: 1 },
+        name: 'mfa_backup_codes_user_id_code_hash_unique',
+        unique: true,
       },
     ]),
   ]);

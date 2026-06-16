@@ -48,6 +48,10 @@ export function conflict(message: string): NextResponse {
   return NextResponse.json({ error: message }, { status: 409 });
 }
 
+export function tooManyRequests(message: string): NextResponse {
+  return NextResponse.json({ error: message }, { status: 429 });
+}
+
 export function serializeUser(user: {
   id: string;
   emailDisplay: string;

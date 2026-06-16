@@ -5,6 +5,7 @@ import {
   CRYPTO_COIN_SYMBOLS,
   CRYPTO_QUANTITY_DECIMALS,
 } from '@/lib/investments/crypto-coins';
+import { DOLLAR_QUANTITY_DECIMALS } from '@/lib/investments/dollar';
 
 export const INVESTMENT_CATEGORIES = [
   'fixed_income',
@@ -37,6 +38,16 @@ const quantitySchema = z
   .refine(
     (value) => decimalPlaces(value) <= CRYPTO_QUANTITY_DECIMALS,
     `Quantity supports at most ${CRYPTO_QUANTITY_DECIMALS} decimal places.`
+  );
+
+// Dollar positions represent USD amounts and are valued at cent precision, so
+// they cap at 2 decimals (the generic `quantitySchema` allows crypto's 8).
+const dollarQuantitySchema = z
+  .number()
+  .positive('Amount must be greater than zero.')
+  .refine(
+    (value) => decimalPlaces(value) <= DOLLAR_QUANTITY_DECIMALS,
+    `Dollar amounts support at most ${DOLLAR_QUANTITY_DECIMALS} decimal places (cents).`
   );
 
 // Crypto positions are valued from a live quote, so they require a coin +
@@ -76,6 +87,13 @@ const dollarFieldsRefinement = (
       path: ['quantity'],
       message: 'Amount is required for dollar positions.',
     });
+    return;
+  }
+  const result = dollarQuantitySchema.safeParse(value.quantity);
+  if (!result.success) {
+    result.error.issues.forEach((issue) =>
+      ctx.addIssue({ ...issue, path: ['quantity'] })
+    );
   }
 };
 

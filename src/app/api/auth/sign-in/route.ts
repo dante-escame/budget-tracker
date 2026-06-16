@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     }
 
     if (error instanceof Error) {
-      return badRequest(error.message);
+      return badRequest('Unable to sign in. Please try again.');
     }
 
     throw error;

@@ -277,8 +277,12 @@ function toReaisInput(centavos: number): string {
 // A reais decimal string → centavos. Blank or non-numeric input reads as 0.
 function parseReaisToCentavos(value: string): number {
   const trimmed = value.trim();
-  if (!/^\d+(\.\d+)?$/.test(trimmed)) return 0;
-  return Math.round(Number(trimmed) * 100);
+  if (!trimmed) return 0;
+
+  const normalized = trimmed.replace(',', '.');
+  if (!/^\d+(\.\d{0,2})?$/.test(normalized)) return 0;
+
+  return Math.round(Number(normalized) * 100);
 }
 
 function toMonthLabel({ year, month }: Entry.MonthOption): string {

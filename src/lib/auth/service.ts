@@ -111,6 +111,12 @@ export class MfaChallengeNotFoundError extends Error {
   }
 }
 
+export class MfaResendCooldownError extends Error {
+  constructor() {
+    super('Please wait before requesting another code.');
+  }
+}
+
 export interface MfaEnrollmentStart {
   type: Auth.MfaMethodType;
   secret?: string;
@@ -723,14 +729,24 @@ export function createAuthService(repository: AuthRepository) {
     if (
       !record ||
       record.challenge.purpose !== 'login' ||
-      record.challenge.consumedAt
+      record.challenge.consumedAt ||
+      record.challenge.expiresAt.getTime() <= Date.now()
     ) {
+      await clearMfaChallengeCookie();
       throw new MfaChallengeNotFoundError();
     }
 
     if (record.challenge.methodType !== 'email') {
       // Authenticator codes are generated on the device; nothing to resend.
       return { methodType: record.challenge.methodType };
+    }
+
+    // Throttle resends so a stolen challenge cookie can't be used to spam OTP
+    // emails: a fresh code is only re-issued once the cooldown since the current
+    // challenge was created has elapsed.
+    const cooldownMs = authConfig.mfaResendCooldownSeconds * 1000;
+    if (Date.now() - record.challenge.createdAt.getTime() < cooldownMs) {
+      throw new MfaResendCooldownError();
     }
 
     const user = await repository.findUserById(record.challenge.userId);

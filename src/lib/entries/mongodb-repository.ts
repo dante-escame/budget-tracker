@@ -342,6 +342,7 @@ export async function createMongoEntryRepository(): Promise<EntryRepository> {
               user_id: parseObjectId(userId),
               deleted_at: null,
               flow: 'income',
+              status: { $ne: 'cancelled' },
               occurred_at: { $gte: start, $lt: end },
               // Only entries within the first 9 days of their month (UTC).
               $expr: { $lte: [{ $dayOfMonth: '$occurred_at' }, 9] },
