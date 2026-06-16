@@ -25,6 +25,16 @@ export async function POST(request: Request) {
 
   try {
     const user = await authService.verifyPasswordLogin({ email, password, context });
+
+    if (await authService.userHasActiveMfa(user.id)) {
+      const challenge = await authService.beginLoginChallenge(user, context);
+
+      return NextResponse.json({
+        mfaRequired: true,
+        methodType: challenge.methodType,
+      });
+    }
+
     const authenticatedSession = await authService.createSession(user, context);
 
     return NextResponse.json({
@@ -47,7 +57,7 @@ export async function POST(request: Request) {
     }
 
     if (error instanceof Error) {
-      return badRequest(error.message);
+      return badRequest('Unable to sign in. Please try again.');
     }
 
     throw error;

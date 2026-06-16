@@ -5,6 +5,10 @@ export namespace Auth {
 
   export type TokenKind = 'email_verification' | 'password_reset';
 
+  export type MfaMethodType = 'totp' | 'email';
+  export type MfaMethodStatus = 'pending' | 'active';
+  export type MfaChallengePurpose = 'login' | 'enrollment' | 'step_up';
+
   export interface User {
     id: string;
     emailNormalized: string;
@@ -39,6 +43,27 @@ export namespace Auth {
     createdAt: Date;
     expiresAt: Date;
     usedAt: Date | null;
+  }
+
+  export interface MfaMethod {
+    id: string;
+    userId: string;
+    type: MfaMethodType;
+    status: MfaMethodStatus;
+    createdAt: Date;
+    verifiedAt: Date | null;
+    lastUsedAt: Date | null;
+  }
+
+  export interface MfaChallenge {
+    id: string;
+    userId: string;
+    methodType: MfaMethodType;
+    purpose: MfaChallengePurpose;
+    attempts: number;
+    createdAt: Date;
+    expiresAt: Date;
+    consumedAt: Date | null;
   }
 
   export interface Event {

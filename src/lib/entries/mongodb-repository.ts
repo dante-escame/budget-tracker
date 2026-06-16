@@ -328,6 +328,44 @@ export async function createMongoEntryRepository(): Promise<EntryRepository> {
 
       return documents.map(mapEntryRecord);
     },
+
+    async getExpectedMonthlyIncome(userId): Promise<number> {
+      const now = new Date();
+      // Window covering the current UTC month and the 3 before it: [start, end).
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1));
+      const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+
+      const results = await collections.entries
+        .aggregate<{ max: number }>([
+          {
+            $match: {
+              user_id: parseObjectId(userId),
+              deleted_at: null,
+              flow: 'income',
+              status: { $ne: 'cancelled' },
+              occurred_at: { $gte: start, $lt: end },
+              // Only entries within the first 9 days of their month (UTC).
+              $expr: { $lte: [{ $dayOfMonth: '$occurred_at' }, 9] },
+            },
+          },
+          // The largest income entry per calendar month.
+          {
+            $group: {
+              _id: {
+                year: { $year: '$occurred_at' },
+                month: { $month: '$occurred_at' },
+              },
+              max: { $max: '$value' },
+            },
+          },
+        ])
+        .toArray();
+
+      if (results.length === 0) return 0;
+
+      const sum = results.reduce((total, r) => total + r.max, 0);
+      return Math.round(sum / results.length);
+    },
   };
 }
 

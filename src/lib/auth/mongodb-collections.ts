@@ -6,6 +6,9 @@ import { getMongoDb } from '@/lib/mongodb';
 import type {
   AuthEventDocument,
   AuthSettingDocument,
+  MfaBackupCodeDocument,
+  MfaChallengeDocument,
+  MfaMethodDocument,
   PasswordResetTokenDocument,
   SessionDocument,
   UserDocument,
@@ -19,6 +22,9 @@ export interface AuthCollections {
   passwordResetTokens: Collection<PasswordResetTokenDocument>;
   authEvents: Collection<AuthEventDocument>;
   authSettings: Collection<AuthSettingDocument>;
+  mfaMethods: Collection<MfaMethodDocument>;
+  mfaChallenges: Collection<MfaChallengeDocument>;
+  mfaBackupCodes: Collection<MfaBackupCodeDocument>;
 }
 
 declare global {
@@ -48,6 +54,9 @@ function createAuthCollections(db: Db): AuthCollections {
       db.collection<PasswordResetTokenDocument>('password_reset_tokens'),
     authEvents: db.collection<AuthEventDocument>('auth_events'),
     authSettings: db.collection<AuthSettingDocument>('auth_settings'),
+    mfaMethods: db.collection<MfaMethodDocument>('mfa_methods'),
+    mfaChallenges: db.collection<MfaChallengeDocument>('mfa_challenges'),
+    mfaBackupCodes: db.collection<MfaBackupCodeDocument>('mfa_backup_codes'),
   };
 }
 
@@ -131,6 +140,40 @@ async function ensureAuthIndexes(collections: AuthCollections): Promise<void> {
       {
         key: { field: 1, updated_at: -1 },
         name: 'auth_settings_field_updated_at',
+      },
+    ]),
+    collections.mfaMethods.createIndexes([
+      {
+        key: { user_id: 1, type: 1 },
+        name: 'mfa_methods_user_id_type_unique',
+        unique: true,
+      },
+      {
+        key: { user_id: 1, status: 1 },
+        name: 'mfa_methods_user_id_status',
+      },
+    ]),
+    collections.mfaChallenges.createIndexes([
+      {
+        key: { challenge_hash: 1 },
+        name: 'mfa_challenges_challenge_hash_unique',
+        unique: true,
+      },
+      {
+        key: { user_id: 1, created_at: -1 },
+        name: 'mfa_challenges_user_id_created_at',
+      },
+      {
+        key: { expires_at: 1 },
+        name: 'mfa_challenges_expires_at_ttl',
+        expireAfterSeconds: 0,
+      },
+    ]),
+    collections.mfaBackupCodes.createIndexes([
+      {
+        key: { user_id: 1, code_hash: 1 },
+        name: 'mfa_backup_codes_user_id_code_hash_unique',
+        unique: true,
       },
     ]),
   ]);
