@@ -15,6 +15,23 @@ function getResend(): Resend {
   return new Resend(apiKey);
 }
 
+// The Resend SDK reports API failures (unverified `from` domain, invalid key,
+// rate limits, …) in the returned `error` field instead of throwing, so a send
+// can "succeed" while delivering nothing. Surface those as real errors.
+async function deliver(payload: {
+  to: string;
+  subject: string;
+  html: string;
+}): Promise<void> {
+  const resend = getResend();
+
+  const { error } = await resend.emails.send({ from: emailFrom, ...payload });
+
+  if (error) {
+    throw new Error(`Resend failed to send email: ${error.message}`);
+  }
+}
+
 export async function sendVerificationEmail(to: string, token: string): Promise<void> {
   const link = `${appUrl}/verify-email?token=${encodeURIComponent(token)}`;
 
@@ -23,10 +40,7 @@ export async function sendVerificationEmail(to: string, token: string): Promise<
     return;
   }
 
-  const resend = getResend();
-
-  await resend.emails.send({
-    from: emailFrom,
+  await deliver({
     to,
     subject: 'Verify your email address',
     html: `
@@ -43,10 +57,7 @@ export async function sendMfaCodeEmail(to: string, code: string): Promise<void> 
     return;
   }
 
-  const resend = getResend();
-
-  await resend.emails.send({
-    from: emailFrom,
+  await deliver({
     to,
     subject: 'Your Budget Tracker verification code',
     html: `
@@ -65,10 +76,7 @@ export async function sendPasswordResetEmail(to: string, token: string): Promise
     return;
   }
 
-  const resend = getResend();
-
-  await resend.emails.send({
-    from: emailFrom,
+  await deliver({
     to,
     subject: 'Reset your password',
     html: `
