@@ -64,7 +64,8 @@ export function TokenActionForm({ kind }: TokenActionFormProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const responseBody = (await response.json()) as AuthApiResponse;
+      const responseBody = ((await response.json().catch(() => null)) ??
+        {}) as AuthApiResponse;
 
       if (!response.ok) {
         throw new Error(responseBody.error ?? 'Unable to complete this action.');

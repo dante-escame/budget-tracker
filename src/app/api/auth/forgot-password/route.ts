@@ -17,7 +17,15 @@ export async function POST(request: Request) {
   );
 
   if (tokenResult) {
-    await sendPasswordResetEmail(email, tokenResult.token);
+    // A delivery failure (e.g. missing RESEND_API_KEY or a Resend outage) must
+    // not surface as a 500 with an empty body — the client would then choke on
+    // `response.json()`. Log it and still return the generic success response so
+    // we neither crash nor leak whether the account exists.
+    try {
+      await sendPasswordResetEmail(email, tokenResult.token);
+    } catch (error) {
+      console.error('[forgot-password] Failed to send password reset email', error);
+    }
   }
 
   return NextResponse.json({ success: true });

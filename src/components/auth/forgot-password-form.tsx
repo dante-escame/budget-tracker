@@ -42,7 +42,7 @@ export function ForgotPasswordForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      const body = (await response.json()) as AuthApiResponse;
+      const body = ((await response.json().catch(() => null)) ?? {}) as AuthApiResponse;
       if (!response.ok) {
         throw new Error(body.error ?? 'Unable to request a reset link.');
       }
