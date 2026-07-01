@@ -1,0 +1,66 @@
+# Self-hosted observability backend for the budget tracker.
+#
+# GlitchTip is a lightweight, Sentry-SDK-compatible error + performance backend.
+# Point the app's SENTRY_DSN at a project created here and traces/errors/logs
+# will flow in. This is the recommended default; full self-hosted Sentry
+# (github.com/getsentry/self-hosted) is the heavier alternative (~16GB RAM).
+#
+# Usage:
+#   1. cp infra/observability/.env.example infra/observability/.env  (edit SECRET_KEY)
+#   2. docker compose -f infra/observability/docker-compose.yml --env-file infra/observability/.env up -d
+#   3. Open http://localhost:8000, register the first user (becomes admin),
+#      create an organization + project, copy its DSN into the app's .env.local.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: glitchtip
+      POSTGRES_USER: glitchtip
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-glitchtip}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  web:
+    image: glitchtip/glitchtip:latest
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - '8000:8080'
+    environment: &glitchtip-env
+      DATABASE_URL: postgresql://glitchtip:${POSTGRES_PASSWORD:-glitchtip}@postgres:5432/glitchtip
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-please-change-this-secret-key}
+      PORT: '8080'
+      GLITCHTIP_DOMAIN: ${GLITCHTIP_DOMAIN:-http://localhost:8000}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-admin@localhost}
+      EMAIL_URL: ${EMAIL_URL:-consolemail://}
+      CELERY_WORKER_AUTOSCALE: '1,3'
+    restart: unless-stopped
+
+  worker:
+    image: glitchtip/glitchtip:latest
+    command: ./bin/run-celery-with-beat.sh
+    depends_on:
+      - postgres
+      - redis
+    environment: *glitchtip-env
+    restart: unless-stopped
+
+  migrate:
+    image: glitchtip/glitchtip:latest
+    command: ./manage.py migrate
+    depends_on:
+      - postgres
+      - redis
+    environment: *glitchtip-env
+    restart: on-failure
+
+volumes:
+  pg-data:

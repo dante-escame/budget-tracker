@@ -1,6 +1,9 @@
 import 'server-only';
 
 import { CRYPTO_COINS, isCryptoSymbol } from '@/lib/investments/crypto-coins';
+import { logger } from '@/lib/observability/logger';
+
+const quotesLog = logger.child({ module: 'crypto-quotes' });
 
 // Quotes are cached in-memory for 30 minutes so repeated page renders don't
 // hammer the free CoinGecko endpoint. The cache survives across requests via
@@ -92,9 +95,9 @@ async function refreshQuotes(
     }
   } catch (error) {
     // Stale-on-error: keep whatever is cached so charts still render.
-    console.error(
-      '[crypto-quotes] Crypto price provider (CoinGecko) is not working — serving last cached prices.',
-      error
+    quotesLog.error(
+      { err: error },
+      'Crypto price provider (CoinGecko) is not working — serving last cached prices.'
     );
   }
 }

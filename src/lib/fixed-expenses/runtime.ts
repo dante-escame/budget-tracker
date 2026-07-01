@@ -3,6 +3,7 @@ import 'server-only';
 import { getEntryService } from '@/lib/entries/runtime';
 import { createMongoFixedExpenseRepository } from '@/lib/fixed-expenses/mongodb-repository';
 import { createFixedExpenseService } from '@/lib/fixed-expenses/service';
+import { instrument } from '@/lib/observability/instrument';
 
 type FixedExpenseService = ReturnType<typeof createFixedExpenseService>;
 
@@ -16,7 +17,9 @@ export function getFixedExpenseService(): Promise<FixedExpenseService> {
       createMongoFixedExpenseRepository(),
       getEntryService(),
     ]).then(([repository, entryService]) =>
-      createFixedExpenseService(repository, entryService)
+      instrument(createFixedExpenseService(repository, entryService), {
+        domain: 'fixed-expenses',
+      })
     );
   }
 

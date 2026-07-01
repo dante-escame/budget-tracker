@@ -1,6 +1,9 @@
 import 'server-only';
 
 import { USD_BRL_QUOTE_URL } from '@/lib/investments/dollar';
+import { logger } from '@/lib/observability/logger';
+
+const quotesLog = logger.child({ module: 'dollar-quote' });
 
 // The USD→BRL rate is cached in-memory for 30 minutes so repeated page renders
 // don't hammer the free AwesomeAPI endpoint. The cache survives across requests
@@ -55,9 +58,9 @@ export async function getDollarQuoteBRL(): Promise<number | null> {
     return rate;
   } catch (error) {
     // Stale-on-error: keep whatever is cached so charts still render.
-    console.error(
-      '[dollar-quote] USD-BRL rate provider (AwesomeAPI) is not working — serving last cached rate.',
-      error
+    quotesLog.error(
+      { err: error },
+      'USD-BRL rate provider (AwesomeAPI) is not working — serving last cached rate.'
     );
     return cached?.rate ?? null;
   }
