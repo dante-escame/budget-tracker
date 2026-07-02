@@ -7,6 +7,9 @@ import {
   type B3Ticker,
   type B3TickerOption,
 } from '@/lib/investments/b3-stocks';
+import { logger } from '@/lib/observability/logger';
+
+const quotesLog = logger.child({ module: 'b3-quotes' });
 
 // B3 quotes are cached in-memory for 30 minutes so repeated page renders don't
 // hammer the upstream endpoint. The cache survives across requests via
@@ -102,9 +105,9 @@ async function refreshQuotes(
         }
       } catch (error) {
         // Stale-on-error: keep whatever is cached so charts still render.
-        console.error(
-          `[b3-quotes] Yahoo Finance quote for ${ticker} failed — keeping last cached price.`,
-          error
+        quotesLog.error(
+          { ticker, err: error },
+          'Yahoo Finance quote failed — keeping last cached price.'
         );
       }
     })
@@ -163,7 +166,7 @@ export async function searchB3Tickers(
     }
     return results;
   } catch (error) {
-    console.error(`[b3-quotes] Yahoo Finance ticker search for "${query}" failed.`, error);
+    quotesLog.error({ query, err: error }, 'Yahoo Finance ticker search failed.');
     return [];
   }
 }

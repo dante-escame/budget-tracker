@@ -2,6 +2,10 @@ import 'server-only';
 
 import { Resend } from 'resend';
 
+import { logger } from '@/lib/observability/logger';
+
+const mailerLog = logger.child({ module: 'mailer' });
+
 const appUrl = (process.env.APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 const emailFrom = process.env.EMAIL_FROM ?? 'Budget Tracker <noreply@budgettracker.app>';
 
@@ -36,7 +40,8 @@ export async function sendVerificationEmail(to: string, token: string): Promise<
   const link = `${appUrl}/verify-email?token=${encodeURIComponent(token)}`;
 
   if (process.env.NODE_ENV !== 'production' && !process.env.RESEND_API_KEY) {
-    console.log(`[mailer] Verification link for ${to}: ${link}`);
+    // Dev convenience: surface the link so it can be followed without a mailbox.
+    mailerLog.info(`Verification link for ${to}: ${link}`);
     return;
   }
 
@@ -53,7 +58,8 @@ export async function sendVerificationEmail(to: string, token: string): Promise<
 
 export async function sendMfaCodeEmail(to: string, code: string): Promise<void> {
   if (process.env.NODE_ENV !== 'production' && !process.env.RESEND_API_KEY) {
-    console.log(`[mailer] MFA code for ${to}: ${code}`);
+    // Dev convenience: surface the code so login can proceed without a mailbox.
+    mailerLog.info(`MFA code for ${to}: ${code}`);
     return;
   }
 
@@ -72,7 +78,8 @@ export async function sendPasswordResetEmail(to: string, token: string): Promise
   const link = `${appUrl}/reset-password?token=${encodeURIComponent(token)}`;
 
   if (process.env.NODE_ENV !== 'production' && !process.env.RESEND_API_KEY) {
-    console.log(`[mailer] Password reset link for ${to}: ${link}`);
+    // Dev convenience: surface the link so reset can proceed without a mailbox.
+    mailerLog.info(`Password reset link for ${to}: ${link}`);
     return;
   }
 
