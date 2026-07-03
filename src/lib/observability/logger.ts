@@ -9,16 +9,20 @@ import pino, { type Logger } from 'pino';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
-const REDACT_PATHS = [
+// MFA codes must be logged under the field name `mfaCode` (never `code`): a
+// generic `code` path would also strip diagnostic codes like `err.code`
+// ('ECONNREFUSED', HTTP statuses) that error triage depends on.
+// Exported so tests can verify the redaction behavior against the real list.
+export const REDACT_PATHS = [
   'password',
   'token',
-  'code',
+  'mfaCode',
   'backupCodes',
   'csvText',
   'authorization',
   '*.password',
   '*.token',
-  '*.code',
+  '*.mfaCode',
   '*.csvText',
 ];
 

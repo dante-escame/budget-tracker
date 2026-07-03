@@ -3,9 +3,11 @@
 // runtime, but this keeps middleware/edge routes covered if any are ever added.
 import * as Sentry from '@sentry/nextjs';
 
+import { resolveTracesSampleRate } from '@/lib/observability/sample-rate';
+
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
   environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV,
-  tracesSampleRate: Number.parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE ?? '') || 0.2,
+  tracesSampleRate: resolveTracesSampleRate(process.env.SENTRY_TRACES_SAMPLE_RATE),
   sendDefaultPii: false,
 });

@@ -14,7 +14,10 @@ export function getBaseDataService(): Promise<BaseDataService> {
   if (!globalThis.__baseDataServicePromise__) {
     globalThis.__baseDataServicePromise__ = createMongoBaseDataRepository().then(
       (repository) =>
-        instrument(createBaseDataService(repository), { domain: 'base-data' })
+        instrument(createBaseDataService(repository), {
+          domain: 'base-data',
+          userIdArg: 0,
+        })
     );
   }
 

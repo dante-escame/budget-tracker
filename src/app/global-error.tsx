@@ -3,9 +3,12 @@
 import { useEffect } from 'react';
 import * as Sentry from '@sentry/nextjs';
 
+import { colors } from '@/theme/colors';
+
 // Top-level error boundary that catches errors in the root layout itself. It
 // replaces the whole document, so it must render its own <html>/<body> and can't
-// rely on the MUI theme provider — inline styles keep it self-contained.
+// rely on the MUI theme provider — inline styles keep it self-contained, with
+// the shared raw palette from src/theme/colors.ts so it stays on-brand.
 export default function GlobalError({
   error,
   reset,
@@ -27,20 +30,20 @@ export default function GlobalError({
           alignItems: 'center',
           justifyContent: 'center',
           fontFamily: 'system-ui, sans-serif',
-          background: '#FAFBE9',
-          color: '#2E3A2E',
+          background: colors.backgroundDefault,
+          color: colors.textPrimary,
         }}
       >
         <div style={{ textAlign: 'center', maxWidth: 420, padding: 24 }}>
           <h1 style={{ fontSize: 24, marginBottom: 8 }}>Something went wrong</h1>
-          <p style={{ color: '#4F5D4F', marginBottom: 24 }}>
+          <p style={{ color: colors.textSecondary, marginBottom: 24 }}>
             An unexpected error occurred. Please try again.
           </p>
           <button
             onClick={reset}
             style={{
-              background: '#88C9A1',
-              color: '#2E3A2E',
+              background: colors.primary,
+              color: colors.textPrimary,
               border: 'none',
               borderRadius: 8,
               padding: '10px 20px',

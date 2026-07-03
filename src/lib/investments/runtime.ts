@@ -20,6 +20,7 @@ export function getInvestmentService(): Promise<InvestmentService> {
       .then(([repository, entryService]) =>
         instrument(createInvestmentService(repository, entryService), {
           domain: 'investments',
+          userIdArg: 0,
         })
       )
       .catch((error) => {

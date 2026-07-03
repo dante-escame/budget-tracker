@@ -13,7 +13,8 @@ declare global {
 export function getEntryService(): Promise<EntryService> {
   if (!globalThis.__entryServicePromise__) {
     globalThis.__entryServicePromise__ = createMongoEntryRepository().then(
-      (repository) => instrument(createEntryService(repository), { domain: 'entries' })
+      (repository) =>
+        instrument(createEntryService(repository), { domain: 'entries', userIdArg: 0 })
     );
   }
 

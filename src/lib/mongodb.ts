@@ -16,6 +16,12 @@ function mongoMonitoringEnabled(): boolean {
 // Internal handshake/heartbeat commands would only add noise to traces.
 const IGNORED_MONGO_COMMANDS = new Set(['ismaster', 'hello', 'ping', 'endSessions']);
 
+// If a command's completion event never fires (connection dropped mid-command,
+// pool torn down), its span would otherwise sit in `pending` forever. Anything
+// older than this is force-ended on the next command; no legitimate query in
+// this app runs longer.
+const PENDING_SPAN_TTL_MS = 60_000;
+
 /**
  * Emits a Sentry `db` span per MongoDB command using the driver's command
  * monitoring events. Because these events fire while a repository call is being
@@ -23,10 +29,27 @@ const IGNORED_MONGO_COMMANDS = new Set(['ismaster', 'hello', 'ping', 'endSession
  * trace, giving per-operation names and durations for the three main flows.
  */
 function enableMongoCommandMonitoring(client: MongoClient): void {
-  const pending = new Map<number, Span>();
+  const pending = new Map<number, { span: Span; startedAt: number }>();
+
+  // Map iteration follows insertion order, so entries at the front are the
+  // oldest; stop at the first one that is still fresh.
+  const evictStale = (now: number) => {
+    for (const [requestId, entry] of pending) {
+      if (now - entry.startedAt < PENDING_SPAN_TTL_MS) break;
+      entry.span.setStatus({ code: 2, message: 'deadline_exceeded' });
+      entry.span.end();
+      pending.delete(requestId);
+    }
+  };
 
   client.on('commandStarted', (event) => {
     if (IGNORED_MONGO_COMMANDS.has(event.commandName)) return;
+
+    // Without an active span there is no trace to nest under — skip the span
+    // allocation entirely (covers unsampled traces and non-request work).
+    if (!Sentry.getActiveSpan()) return;
+
+    evictStale(Date.now());
 
     // The value at `command[commandName]` is the target collection for CRUD ops.
     const collection = event.command?.[event.commandName];
@@ -42,14 +65,14 @@ function enableMongoCommandMonitoring(client: MongoClient): void {
         ...(typeof collection === 'string' ? { 'db.mongodb.collection': collection } : {}),
       },
     });
-    pending.set(event.requestId, span);
+    pending.set(event.requestId, { span, startedAt: Date.now() });
   });
 
   const finish = (requestId: number, failed: boolean) => {
-    const span = pending.get(requestId);
-    if (!span) return;
-    if (failed) span.setStatus({ code: 2, message: 'internal_error' });
-    span.end();
+    const entry = pending.get(requestId);
+    if (!entry) return;
+    if (failed) entry.span.setStatus({ code: 2, message: 'internal_error' });
+    entry.span.end();
     pending.delete(requestId);
   };
 

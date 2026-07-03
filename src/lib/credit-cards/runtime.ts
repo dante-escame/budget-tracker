@@ -14,7 +14,10 @@ export function getCreditCardService(): Promise<CreditCardService> {
   if (!globalThis.__creditCardServicePromise__) {
     globalThis.__creditCardServicePromise__ = createMongoCreditCardRepository().then(
       (repository) =>
-        instrument(createCreditCardService(repository), { domain: 'credit-cards' })
+        instrument(createCreditCardService(repository), {
+          domain: 'credit-cards',
+          userIdArg: 0,
+        })
     );
   }
 

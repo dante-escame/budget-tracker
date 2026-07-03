@@ -14,7 +14,7 @@ A personal finance app for tracking income, expenses, and budgets.
 - Sentry (`@sentry/nextjs`, self-hosted via GlitchTip) for error monitoring and distributed tracing
 - pino (with `pino-pretty` in development) for structured JSON logging
 
-See [`docs/for-ai/observability.md`](docs/for-ai/observability.md) for observability setup and conventions.
+See [`docs/observability.md`](docs/observability.md) for observability setup and conventions.
 
 ## Architecture Direction
 This project uses the App Router architecture:

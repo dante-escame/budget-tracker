@@ -19,6 +19,7 @@ export function getFixedExpenseService(): Promise<FixedExpenseService> {
     ]).then(([repository, entryService]) =>
       instrument(createFixedExpenseService(repository, entryService), {
         domain: 'fixed-expenses',
+        userIdArg: 0,
       })
     );
   }

@@ -2,42 +2,44 @@
 
 import { createTheme } from '@mui/material/styles';
 
+import { colors } from '@/theme/colors';
+
 const theme = createTheme({
   cssVariables: true,
   palette: {
     mode: 'light',
     primary: {
-      main: '#88C9A1',
-      light: '#B5E2C5',
-      dark: '#5DA77A',
-      contrastText: '#1F2D24',
+      main: colors.primary,
+      light: colors.primaryLight,
+      dark: colors.primaryDark,
+      contrastText: colors.primaryContrastText,
     },
     secondary: {
-      main: '#FFF1A8',
-      light: '#FFF8C7',
-      dark: '#E6D070',
-      contrastText: '#3A3416',
+      main: colors.secondary,
+      light: colors.secondaryLight,
+      dark: colors.secondaryDark,
+      contrastText: colors.secondaryContrastText,
     },
     background: {
-      default: '#FAFBE9',
-      paper: '#FFFFFF',
+      default: colors.backgroundDefault,
+      paper: colors.white,
     },
     text: {
-      primary: '#2E3A2E',
-      secondary: '#4F5D4F',
+      primary: colors.textPrimary,
+      secondary: colors.textSecondary,
     },
-    divider: '#E0E8DC',
+    divider: colors.divider,
     success: {
-      main: '#5DA77A',
-      light: '#88C9A1',
-      dark: '#3F7A57',
-      contrastText: '#FFFFFF',
+      main: colors.primaryDark,
+      light: colors.primary,
+      dark: colors.successDark,
+      contrastText: colors.white,
     },
     warning: {
-      main: '#E6D070',
-      light: '#FFF1A8',
-      dark: '#A88E2E',
-      contrastText: '#3A3416',
+      main: colors.secondaryDark,
+      light: colors.secondary,
+      dark: colors.warningDark,
+      contrastText: colors.secondaryContrastText,
     },
   },
   shape: {

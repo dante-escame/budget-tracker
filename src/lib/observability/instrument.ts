@@ -30,23 +30,20 @@ export function getTraceId(): string | undefined {
 }
 
 /**
- * Best-effort user id for logs: most service methods take `userId` as their first
- * argument. We only accept a plain id-like string and deliberately skip values
- * that look like emails or free text (e.g. auth methods take an email first) so we
- * never leak PII into logs.
+ * User ids are only logged when a domain explicitly opts in via `userIdArg`,
+ * naming which argument position carries the user id. Never inferred from
+ * argument shape: domains like auth pass secrets (tokens, MFA codes) as their
+ * first argument, and guessing would write those to logs under `userId`.
  */
-function inferUserId(args: unknown[]): string | undefined {
-  const first = args[0];
-  if (
-    typeof first === 'string' &&
-    first.length > 0 &&
-    first.length <= 64 &&
-    !first.includes('@') &&
-    !first.includes(' ')
-  ) {
-    return first;
+export function userIdFromArgs(
+  args: unknown[],
+  userIdArg: number | undefined
+): string | undefined {
+  if (userIdArg === undefined) {
+    return undefined;
   }
-  return undefined;
+  const value = args[userIdArg];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 function isThenable(value: unknown): value is Promise<unknown> {
@@ -93,6 +90,7 @@ function isFrameworkControlFlow(error: unknown): boolean {
 function runInstrumented(
   domain: string,
   method: string,
+  userIdArg: number | undefined,
   fn: (...args: unknown[]) => unknown,
   thisArg: unknown,
   args: unknown[]
@@ -100,7 +98,7 @@ function runInstrumented(
   const flow = `${domain}.${method}`;
   const log = logger.child({
     flow,
-    userId: inferUserId(args),
+    userId: userIdFromArgs(args, userIdArg),
     traceId: getTraceId(),
   });
   const startedAt = performance.now();
@@ -154,12 +152,18 @@ function runInstrumented(
  * Wraps every function-valued property of `service` with telemetry. Non-function
  * properties are passed through untouched. The returned object keeps the same
  * type, so callers are unaffected.
+ *
+ * `userIdArg` opts the domain into user-id logging by naming the argument
+ * position that carries the user id on every method (0 for the domains whose
+ * methods all take `userId` first). Omit it for domains where that doesn't hold
+ * — e.g. auth, whose methods receive tokens/codes first — so secrets can never
+ * be logged as `userId`.
  */
 export function instrument<T extends object>(
   service: T,
-  options: { domain: string }
+  options: { domain: string; userIdArg?: number }
 ): T {
-  const { domain } = options;
+  const { domain, userIdArg } = options;
   const wrapped: Record<string, unknown> = {};
 
   for (const key of Object.keys(service) as (keyof T & string)[]) {
@@ -172,7 +176,7 @@ export function instrument<T extends object>(
 
     const method = value as (...args: unknown[]) => unknown;
     wrapped[key] = (...args: unknown[]) =>
-      runInstrumented(domain, key, method, service, args);
+      runInstrumented(domain, key, userIdArg, method, service, args);
   }
 
   return wrapped as T;

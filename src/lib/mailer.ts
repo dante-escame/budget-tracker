@@ -2,10 +2,6 @@ import 'server-only';
 
 import { Resend } from 'resend';
 
-import { logger } from '@/lib/observability/logger';
-
-const mailerLog = logger.child({ module: 'mailer' });
-
 const appUrl = (process.env.APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 const emailFrom = process.env.EMAIL_FROM ?? 'Budget Tracker <noreply@budgettracker.app>';
 
@@ -17,6 +13,22 @@ function getResend(): Resend {
   }
 
   return new Resend(apiKey);
+}
+
+/**
+ * Without a mail provider in development, print what would have been emailed so
+ * the flow can continue (follow the link / type the code). Deliberately uses
+ * `console.log`, not the structured logger: it must print regardless of
+ * LOG_LEVEL, and the secret lives in the message text where pino redaction
+ * can't apply — this dev-only output is the one sanctioned exemption to the
+ * "no tokens/codes in logs" rule.
+ */
+function printDevMailFallback(message: string): boolean {
+  if (process.env.NODE_ENV !== 'production' && !process.env.RESEND_API_KEY) {
+    console.log(`[mailer] ${message}`);
+    return true;
+  }
+  return false;
 }
 
 // The Resend SDK reports API failures (unverified `from` domain, invalid key,
@@ -39,9 +51,7 @@ async function deliver(payload: {
 export async function sendVerificationEmail(to: string, token: string): Promise<void> {
   const link = `${appUrl}/verify-email?token=${encodeURIComponent(token)}`;
 
-  if (process.env.NODE_ENV !== 'production' && !process.env.RESEND_API_KEY) {
-    // Dev convenience: surface the link so it can be followed without a mailbox.
-    mailerLog.info(`Verification link for ${to}: ${link}`);
+  if (printDevMailFallback(`Verification link for ${to}: ${link}`)) {
     return;
   }
 
@@ -57,9 +67,7 @@ export async function sendVerificationEmail(to: string, token: string): Promise<
 }
 
 export async function sendMfaCodeEmail(to: string, code: string): Promise<void> {
-  if (process.env.NODE_ENV !== 'production' && !process.env.RESEND_API_KEY) {
-    // Dev convenience: surface the code so login can proceed without a mailbox.
-    mailerLog.info(`MFA code for ${to}: ${code}`);
+  if (printDevMailFallback(`MFA code for ${to}: ${code}`)) {
     return;
   }
 
@@ -77,9 +85,7 @@ export async function sendMfaCodeEmail(to: string, code: string): Promise<void> 
 export async function sendPasswordResetEmail(to: string, token: string): Promise<void> {
   const link = `${appUrl}/reset-password?token=${encodeURIComponent(token)}`;
 
-  if (process.env.NODE_ENV !== 'production' && !process.env.RESEND_API_KEY) {
-    // Dev convenience: surface the link so reset can proceed without a mailbox.
-    mailerLog.info(`Password reset link for ${to}: ${link}`);
+  if (printDevMailFallback(`Password reset link for ${to}: ${link}`)) {
     return;
   }
 
