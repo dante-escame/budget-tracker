@@ -6,7 +6,9 @@
 # (github.com/getsentry/self-hosted) is the heavier alternative (~16GB RAM).
 #
 # Usage:
-#   1. cp infra/observability/.env.example infra/observability/.env  (edit SECRET_KEY)
+#   1. cp infra/observability/.env.example infra/observability/.env
+#      (set POSTGRES_PASSWORD and SECRET_KEY — both are required, compose
+#       fails fast if either is missing)
 #   2. docker compose -f infra/observability/docker-compose.yml --env-file infra/observability/.env up -d
 #   3. Open http://localhost:8000, register the first user (becomes admin),
 #      create an organization + project, copy its DSN into the app's .env.local.
@@ -17,7 +19,7 @@ services:
     environment:
       POSTGRES_DB: glitchtip
       POSTGRES_USER: glitchtip
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-glitchtip}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/observability/.env}
     volumes:
       - pg-data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -34,9 +36,9 @@ services:
     ports:
       - '8000:8080'
     environment: &glitchtip-env
-      DATABASE_URL: postgresql://glitchtip:${POSTGRES_PASSWORD:-glitchtip}@postgres:5432/glitchtip
+      DATABASE_URL: postgresql://glitchtip:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/observability/.env}@postgres:5432/glitchtip
       REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: ${SECRET_KEY:-please-change-this-secret-key}
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in infra/observability/.env}
       PORT: '8080'
       GLITCHTIP_DOMAIN: ${GLITCHTIP_DOMAIN:-http://localhost:8000}
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-admin@localhost}

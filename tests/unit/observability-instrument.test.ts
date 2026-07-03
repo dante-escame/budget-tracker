@@ -2,13 +2,18 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
+const childLog = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+
 const childSpy = vi.hoisted(() =>
-  vi.fn((_bindings: Record<string, unknown>) => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    error: vi.fn(),
-  }))
+  vi.fn<(bindings: Record<string, unknown>) => typeof childLog>(() => childLog)
 );
+
+const captureExceptionSpy = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/observability/logger', () => ({
   logger: { child: childSpy },
@@ -21,10 +26,11 @@ vi.mock('@sentry/nextjs', () => ({
     getPropagationContext: () => ({ traceId: 'trace-1' }),
   }),
   startSpan: (_opts: unknown, fn: () => unknown) => fn(),
-  captureException: vi.fn(),
+  captureException: captureExceptionSpy,
 }));
 
 import { instrument, userIdFromArgs } from '@/lib/observability/instrument';
+import { ExpectedDomainError } from '@/lib/errors';
 
 describe('userIdFromArgs', () => {
   it('returns the argument at the opted-in index', () => {
@@ -76,5 +82,51 @@ describe('instrument userId logging', () => {
       flow: 'auth.resetPassword',
       userId: undefined,
     });
+  });
+});
+
+describe('instrument expected domain errors', () => {
+  class InvalidCredentialsError extends ExpectedDomainError {
+    constructor() {
+      super('Invalid email or password.');
+    }
+  }
+
+  beforeEach(() => {
+    captureExceptionSpy.mockClear();
+    childLog.warn.mockClear();
+    childLog.error.mockClear();
+  });
+
+  it('logs expected errors at warn and skips Sentry, still re-throwing', async () => {
+    const service = instrument(
+      {
+        signIn: async () => {
+          throw new InvalidCredentialsError();
+        },
+      },
+      { domain: 'auth' }
+    );
+
+    await expect(service.signIn()).rejects.toBeInstanceOf(InvalidCredentialsError);
+    expect(captureExceptionSpy).not.toHaveBeenCalled();
+    expect(childLog.warn).toHaveBeenCalledTimes(1);
+    expect(childLog.error).not.toHaveBeenCalled();
+  });
+
+  it('still reports unexpected errors to Sentry at error level', async () => {
+    const service = instrument(
+      {
+        boom: async () => {
+          throw new Error('db down');
+        },
+      },
+      { domain: 'entries' }
+    );
+
+    await expect(service.boom()).rejects.toThrow('db down');
+    expect(captureExceptionSpy).toHaveBeenCalledTimes(1);
+    expect(childLog.error).toHaveBeenCalledTimes(1);
+    expect(childLog.warn).not.toHaveBeenCalled();
   });
 });

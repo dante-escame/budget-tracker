@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { ExpectedDomainError } from '@/lib/errors';
 import {
   clearMfaChallengeCookie,
   clearSessionCookie,
@@ -57,61 +58,61 @@ export interface AuthenticatedSession {
   expiresAt: Date;
 }
 
-export class InvalidCredentialsError extends Error {
+export class InvalidCredentialsError extends ExpectedDomainError {
   constructor() {
     super('Invalid email or password.');
   }
 }
 
-export class EmailNotVerifiedError extends Error {
+export class EmailNotVerifiedError extends ExpectedDomainError {
   constructor() {
     super('Email verification is required before access is granted.');
   }
 }
 
-export class AuthenticationRequiredError extends Error {
+export class AuthenticationRequiredError extends ExpectedDomainError {
   constructor() {
     super('Authentication is required.');
   }
 }
 
-export class RecentAuthenticationRequiredError extends Error {
+export class RecentAuthenticationRequiredError extends ExpectedDomainError {
   constructor() {
     super('A recent authentication check is required.');
   }
 }
 
-export class StepUpAuthenticationRequiredError extends Error {
+export class StepUpAuthenticationRequiredError extends ExpectedDomainError {
   constructor() {
     super('Step-up authentication is required.');
   }
 }
 
-export class MfaMethodAlreadyActiveError extends Error {
+export class MfaMethodAlreadyActiveError extends ExpectedDomainError {
   constructor() {
     super('That authentication method is already active.');
   }
 }
 
-export class MfaMethodNotFoundError extends Error {
+export class MfaMethodNotFoundError extends ExpectedDomainError {
   constructor() {
     super('That authentication method is not set up.');
   }
 }
 
-export class InvalidMfaCodeError extends Error {
+export class InvalidMfaCodeError extends ExpectedDomainError {
   constructor() {
     super('The verification code is incorrect or has expired.');
   }
 }
 
-export class MfaChallengeNotFoundError extends Error {
+export class MfaChallengeNotFoundError extends ExpectedDomainError {
   constructor() {
     super('Your verification session has expired. Please sign in again.');
   }
 }
 
-export class MfaResendCooldownError extends Error {
+export class MfaResendCooldownError extends ExpectedDomainError {
   constructor() {
     super('Please wait before requesting another code.');
   }

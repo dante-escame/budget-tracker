@@ -2,6 +2,7 @@ import 'server-only';
 
 import * as Sentry from '@sentry/nextjs';
 
+import { isExpectedDomainError } from '@/lib/errors';
 import { logger } from '@/lib/observability/logger';
 
 // A generic telemetry wrapper for the domain service objects. Every method is
@@ -113,6 +114,15 @@ function runInstrumented(
   const onError = (error: unknown) => {
     if (isFrameworkControlFlow(error)) {
       log.debug({ event: 'bailout', durationMs: durationMs() }, `${flow} bailed out`);
+      return;
+    }
+    // Expected user-facing outcomes (invalid credentials, empty import, …) are
+    // handled by the API routes; they are warnings here, not Sentry events.
+    if (isExpectedDomainError(error)) {
+      log.warn(
+        { event: 'expected-error', durationMs: durationMs(), err: toErrorInfo(error) },
+        `${flow} rejected`
+      );
       return;
     }
     Sentry.captureException(error);

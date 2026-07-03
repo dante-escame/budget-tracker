@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { ExpectedDomainError } from '@/lib/errors';
 import { matchCategory } from '@/lib/entries/categorize';
 import { categoryLabel } from '@/lib/entries/categories';
 import { parseStatementCsv } from '@/lib/entries/csv';
@@ -12,7 +13,7 @@ import type {
 import { statementRowSchema } from '@/lib/entries/schemas';
 import { statementRowToDraft, type EntryDraft } from '@/lib/entries/transform';
 
-export class EmptyStatementError extends Error {
+export class EmptyStatementError extends ExpectedDomainError {
   constructor() {
     super('The statement file has no rows to import.');
   }

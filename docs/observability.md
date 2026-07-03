@@ -22,7 +22,7 @@ JSON logging (pino), correlated by trace id. Everything is opt-in via env: with
 
 Server (add to `.env.local`):
 
-```
+```bash
 SENTRY_DSN=                 # from your GlitchTip/Sentry project; unset = telemetry off
 SENTRY_ENVIRONMENT=development
 SENTRY_TRACES_SAMPLE_RATE=1.0   # 0..1; defaults 1.0 dev / 0.2 prod; explicit 0 disables tracing
@@ -58,6 +58,11 @@ Each domain's service is built in `src/lib/<domain>/runtime.ts` and wrapped with
 - logs `start` / `success` / `error` with `durationMs`, `flow`, `traceId`
   (plus `userId` when the domain opts in — see below);
 - reports thrown errors to Sentry and re-throws them unchanged.
+
+Errors that extend `ExpectedDomainError` (`src/lib/errors.ts`) — invalid
+credentials, empty import files, and other user-facing outcomes the API routes
+already map to 4xx — are logged at `warn` and never sent to Sentry. Make new
+"expected" service errors extend that class instead of `Error`.
 
 MongoDB command monitoring (enabled when `SENTRY_DSN` is set) adds a `db` span
 per DB command while a trace is active, so a trace shows service method → DB
