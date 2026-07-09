@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { ExpectedDomainError } from '@/lib/errors';
 import { matchCategory } from '@/lib/entries/categorize';
 import { parseCreditCardCsv } from '@/lib/credit-cards/csv';
 import { creditCardRowSchema, type CreditCardRowFields } from '@/lib/credit-cards/schemas';
@@ -8,7 +9,7 @@ import type { CreditCardRepository, MonthFilter } from '@/lib/credit-cards/repos
 import { creditCardRowsToDrafts } from '@/lib/credit-cards/transform';
 import { pickSuggestedPayment } from '@/lib/credit-cards/matching';
 
-export class EmptyBillError extends Error {
+export class EmptyBillError extends ExpectedDomainError {
   constructor() {
     super('The credit-card bill file has no rows to import.');
   }

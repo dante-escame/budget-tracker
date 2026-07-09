@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createMongoCreditCardRepository } from '@/lib/credit-cards/mongodb-repository';
 import { createCreditCardService } from '@/lib/credit-cards/service';
+import { instrument } from '@/lib/observability/instrument';
 
 type CreditCardService = ReturnType<typeof createCreditCardService>;
 
@@ -12,7 +13,11 @@ declare global {
 export function getCreditCardService(): Promise<CreditCardService> {
   if (!globalThis.__creditCardServicePromise__) {
     globalThis.__creditCardServicePromise__ = createMongoCreditCardRepository().then(
-      (repository) => createCreditCardService(repository)
+      (repository) =>
+        instrument(createCreditCardService(repository), {
+          domain: 'credit-cards',
+          userIdArg: 0,
+        })
     );
   }
 

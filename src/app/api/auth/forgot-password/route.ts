@@ -4,6 +4,7 @@ import { extractRequestContext, parseBodyWithSchema } from '@/lib/auth/http';
 import { forgotPasswordSchema } from '@/lib/auth/schemas';
 import { getAuthService } from '@/lib/auth/runtime';
 import { sendPasswordResetEmail } from '@/lib/mailer';
+import { logger } from '@/lib/observability/logger';
 
 export async function POST(request: Request) {
   const parsed = await parseBodyWithSchema(request, forgotPasswordSchema);
@@ -24,7 +25,10 @@ export async function POST(request: Request) {
     try {
       await sendPasswordResetEmail(email, tokenResult.token);
     } catch (error) {
-      console.error('[forgot-password] Failed to send password reset email', error);
+      logger.error(
+        { module: 'forgot-password', err: error },
+        'Failed to send password reset email'
+      );
     }
   }
 

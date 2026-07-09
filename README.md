@@ -11,6 +11,10 @@ A personal finance app for tracking income, expenses, and budgets.
 - `@mui/icons-material` for iconography
 - Docker multi-stage build with Next.js `standalone` output
 - Vercel deployment target
+- Sentry (`@sentry/nextjs`, self-hosted via GlitchTip) for error monitoring and distributed tracing
+- pino (with `pino-pretty` in development) for structured JSON logging
+
+See [`docs/observability.md`](docs/observability.md) for observability setup and conventions.
 
 ## Architecture Direction
 This project uses the App Router architecture:

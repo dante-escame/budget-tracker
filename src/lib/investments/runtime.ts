@@ -3,6 +3,7 @@ import 'server-only';
 import { getEntryService } from '@/lib/entries/runtime';
 import { createMongoInvestmentRepository } from '@/lib/investments/mongodb-repository';
 import { createInvestmentService } from '@/lib/investments/service';
+import { instrument } from '@/lib/observability/instrument';
 
 type InvestmentService = ReturnType<typeof createInvestmentService>;
 
@@ -17,7 +18,10 @@ export function getInvestmentService(): Promise<InvestmentService> {
       getEntryService(),
     ])
       .then(([repository, entryService]) =>
-        createInvestmentService(repository, entryService)
+        instrument(createInvestmentService(repository, entryService), {
+          domain: 'investments',
+          userIdArg: 0,
+        })
       )
       .catch((error) => {
         globalThis.__investmentServicePromise__ = undefined;
